@@ -1,0 +1,11 @@
+{
+  // Rebuild the PDF every time a .tex file is saved (uses latexmk).
+  "latex-workshop.latex.autoBuild.run": "onSave",
+  // Show the PDF in a VS Code tab beside the source.
+  "latex-workshop.view.pdf.viewer": "tab",
+  // Remove .aux/.log/.fls clutter after a successful build.
+  "latex-workshop.latex.autoClean.run": "onBuilt",
+  "[latex]": {
+    "editor.wordWrap": "on"
+  }
+}

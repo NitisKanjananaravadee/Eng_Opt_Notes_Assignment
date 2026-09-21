@@ -1,0 +1,443 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{mathpazo}          % Palatino text and maths -- easier to read than Computer Modern
+\usepackage{microtype}         % subtler line breaking, fewer ragged edges
+\usepackage{amsmath,amssymb}
+\usepackage{bm}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{parskip}
+
+% --- headings -------------------------------------------------------------
+\definecolor{rule}{gray}{0.55}
+\titleformat{\section}{\large\bfseries}{}{0pt}{}[{\color{rule}\titlerule}]
+\titlespacing*{\section}{0pt}{1.6em}{0.8em}
+\titleformat{\subsection}{\bfseries}{}{0pt}{}
+\titlespacing*{\subsection}{0pt}{1.2em}{0.4em}
+
+% --- tableaux -------------------------------------------------------------
+% Fixed-width columns so the rows of a stacked row operation line up entry by entry.
+\newcolumntype{V}{>{\centering\arraybackslash$}p{2.7em}<{$}}
+\newcommand{\rowv}[1]{\left[\begin{array}{VVVVVVV|V}#1\end{array}\right]}
+
+% A tableau: caption above, kept on one page, in a slightly smaller size.
+\definecolor{pivot}{RGB}{255,236,189}
+\newcommand{\piv}[1]{\colorbox{pivot}{$#1$}}   % shades the pivot element
+\newenvironment{tableau}[1]
+  {\begin{center}\begin{minipage}{\linewidth}\centering\small
+   \textbf{#1}\\[0.4em]}
+  {\end{minipage}\end{center}}
+
+\title{Engineering Optimisation --- Assignment 1}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section*{Question 1: Robot path around obstacles}
+
+\subsection*{1. Source}
+
+A warehouse robot drives from a pick station to a drop station across a floor
+full of pallet stacks, and on the way it must pass a barcode scanner at a fixed
+point $\bm{w}$ so the load is logged. Every metre costs time and battery, times
+thousands of trips a day. The operator wants the shortest path that passes the
+scanner and doesn't hit anything.
+
+\subsection*{2. The three parts}
+
+\textbf{Given data (fixed parameters).} Start $\bm{p}_0$ and goal
+$\bm{p}_{N+1}$; the number of waypoints $N$ (chosen beforehand, not a design
+variable); $M$ obstacles with centre $\bm{c}_j$ [m] and radius $r_j$ [m]; robot
+radius $\rho$ [m]; maximum segment length $\Delta_{\max}$ [m]; scanner position
+$\bm{w}$ [m] and the index $q$ of the waypoint that must sit on it; workspace
+limits $x_{\min}, x_{\max}, y_{\min}, y_{\max}$ [m]. Start and goal are assumed
+to lie clear of every obstacle.
+
+\subsubsection*{(a) Design variables}
+
+\[
+  \bm{p}_i = (x_i, y_i) \ [\mathrm{m}], \qquad i = 1,\dots,N
+\]
+
+The floor positions of the $N$ waypoints of a polyline path, giving $2N$
+design variables in total.
+
+\subsubsection*{(b) Objective (minimise)}
+
+The total path length [m], to be \emph{minimised}:
+\[
+  f(\bm{p}) = \sum_{i=0}^{N} \lVert \bm{p}_{i+1} - \bm{p}_i \rVert_2
+\]
+
+\subsubsection*{(c) Constraints}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Constraint & Type & Why \\
+\midrule
+Obstacle clearance     & Behaviour & couples $x_i$ and $y_i$ through a norm \\
+Segment length $\le \Delta_{\max}$ & Behaviour & couples two neighbouring waypoints \\
+Workspace bounds       & Side      & each limits one variable on its own \\
+Scanner gate $\bm{p}_q = \bm{w}$ & Side ($\mathrm{lb}=\mathrm{ub}$) & fixes $x_q$ and $y_q$ one variable at a time \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The clearance and segment-length constraints work together. Clearance is only
+checked at the waypoints, so on its own a segment between two clear waypoints
+could still cut through an obstacle. Capping every segment at $\Delta_{\max}$
+and inflating the checked radius accordingly closes that gap: if both ends of a
+segment of length at most $\Delta_{\max}$ lie at least $R'$ from a centre, every
+point of the segment lies at least $\sqrt{R'^2 - \Delta_{\max}^2/4}$ from it.
+Choosing
+\[
+  R_j' = \sqrt{(r_j + \rho)^2 + \Delta_{\max}^2/4}
+\]
+therefore guarantees that the whole path, not just its waypoints, keeps the
+robot off obstacle $j$.
+
+\subsection*{3. Standard form}
+
+\begin{align}
+  \min_{\bm{p}} \quad & f(\bm{p}) = \sum_{i=0}^{N} \lVert \bm{p}_{i+1} - \bm{p}_i \rVert_2 \\[0.4em]
+  \text{s.t.} \quad
+  & g_{ij} = 1 - \frac{\lVert \bm{p}_i - \bm{c}_j \rVert_2}{R_j'} \le 0,
+    && i = 1,\dots,N,\ j = 1,\dots,M \\[0.4em]
+  & g_i^{\mathrm{seg}} = \frac{\lVert \bm{p}_{i+1} - \bm{p}_i \rVert_2}{\Delta_{\max}} - 1 \le 0,
+    && i = 0,\dots,N \\[0.4em]
+  & x_{\min} \le x_i \le x_{\max}, \quad y_{\min} \le y_i \le y_{\max},
+    && i = 1,\dots,N \\[0.4em]
+  & h_1 = x_q - w_x = 0, \qquad h_2 = y_q - w_y = 0
+\end{align}
+
+Both inequality families are normalised so that each $g$ is dimensionless and
+of order one. In total there are $m = NM + (N+1)$ inequality constraints, $4N$
+bounds and $p = 2$ equality constraints.
+
+\subsection*{4. Classification}
+
+\textbf{(a) Nonlinear.} The Euclidean norm appears in the objective and in the
+clearance and segment-length constraints.
+
+\textbf{(b) Not convex.} The objective is convex (a sum of norms of affine
+functions of $\bm{p}$), the segment-length constraints are convex, and the
+bounds and gate are linear. Only obstacle clearance breaks convexity: it asks
+each waypoint to stay outside a disc, and a disc exterior isn't convex. Take a
+feasible point above the obstacle and one below, and the straight line between
+them cuts through. Each way of passing the obstacles (left or right of each one)
+gives its own local minimum, so only local optimality can be claimed. In
+practice, run the solver from several starting guesses and keep the best.
+
+\newpage
+\section*{Question 2: A linear programme by hand}
+
+\subsection*{1. Formulation}
+
+A machine runs 8 h a day for 30 days, so it gives 240 h a month. The hours
+available in a group are its number of machines times 240.
+
+\begin{center}
+\begin{tabular}{lccccc}
+\toprule
+ & L & S & D & M & G \\
+\midrule
+machines available  & 10   & 3   & 4   & 6    & 5    \\
+hours per month     & 2400 & 720 & 960 & 1440 & 1200 \\
+hours per unit of A & 0.6  & 0.4 & 0.1 & 0.5  & 0.2  \\
+hours per unit of B & 0.9  & 0.1 & 0.2 & 0.3  & 0.3  \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+A column is one machine group. A row is one part's recipe.
+
+\textbf{Design variables.} $x_A$ and $x_B$: the parts of type A and type B made
+each month [units/month]. Both are continuous. A fractional answer would be
+rounded at the end.
+
+\textbf{Objective.} We want $x_A + x_B$ to be as large as possible. This course
+always minimises, so we minimise the negative of it: $f = -(x_A + x_B)$. Both
+have the same optimum.
+
+\textbf{Constraints.} A group cannot use more hours than it has. Hours used are
+(h per unit)$\times$(units per month), which gives h per month, and the limit is
+also in h per month.
+
+\begin{align*}
+  \min_{x_A,\,x_B} \quad & f = -x_A - x_B && \text{$-$output, units/month} \\
+  \text{s.t.} \quad
+  & 0.6x_A + 0.9x_B \le 2400 && \text{lathe, h} \\
+  & 0.4x_A + 0.1x_B \le 720  && \text{shaper, h} \\
+  & 0.1x_A + 0.2x_B \le 960  && \text{drilling, h} \\
+  & 0.5x_A + 0.3x_B \le 1440 && \text{milling, h} \\
+  & 0.2x_A + 0.3x_B \le 1200 && \text{grinding, h} \\
+  & x_A,\ x_B \ge 0
+\end{align*}
+
+The five machine limits are \emph{behaviour} constraints. They limit how the
+shop performs, and each one uses both variables. The two sign conditions are
+\emph{side} constraints: each limits a single variable, so they are bounds.
+
+\subsection*{2. Standard form with slack variables}
+
+One slack per constraint turns every $\le$ into an $=$:
+
+\begin{align*}
+  & 0.6x_A + 0.9x_B + s_L = 2400 \\
+  & 0.4x_A + 0.1x_B + s_S = 720 \\
+  & 0.1x_A + 0.2x_B + s_D = 960 \\
+  & 0.5x_A + 0.3x_B + s_M = 1440 \\
+  & 0.2x_A + 0.3x_B + s_G = 1200 \\
+  & x_A,\ x_B,\ s_L,\ s_S,\ s_D,\ s_M,\ s_G \ge 0
+\end{align*}
+
+\textbf{What each slack measures.} A slack is the time that group stands idle
+each month [h/month]: $s_L$ unused lathe hours, $s_S$ shaper, $s_D$ drilling,
+$s_M$ milling, $s_G$ grinding. If a slack is zero, the group is fully booked and
+its constraint is active. If it is positive, the group has that many hours to
+spare.
+
+\subsection*{3. Simplex tableau [Bonus]}
+
+Move the objective across: $-x_A - x_B + 0s_L + 0s_S + 0s_D + 0s_M + 0s_G + (-f) = 0$.
+The rows are $R_1,\dots,R_5$ (L, S, D, M, G) and $R_{-f}$. The pivot element is
+shaded in each tableau.
+
+\begin{tableau}{Initial tableau}
+\begin{tabular}{l|rrrrrrr|r}
+basis & $x_A$ & $x_B$ & $s_L$ & $s_S$ & $s_D$ & $s_M$ & $s_G$ & RHS \\
+\hline
+$s_L$ & 0.6 & 0.9 & 1 & 0 & 0 & 0 & 0 & 2400 \\
+$s_S$ & \piv{0.4} & 0.1 & 0 & 1 & 0 & 0 & 0 & 720 \\
+$s_D$ & 0.1 & 0.2 & 0 & 0 & 1 & 0 & 0 & 960 \\
+$s_M$ & 0.5 & 0.3 & 0 & 0 & 0 & 1 & 0 & 1440 \\
+$s_G$ & 0.2 & 0.3 & 0 & 0 & 0 & 0 & 1 & 1200 \\
+\hline
+$-f$  & $-1$ & $-1$ & 0 & 0 & 0 & 0 & 0 & 0 \\
+\end{tabular}
+\end{tableau}
+
+The basis is $\{s_L, s_S, s_D, s_M, s_G\}$, so $x_A = x_B = 0$ and every slack
+holds its full right-hand side. We make nothing and every machine stands idle.
+That is a real vertex, and a bad plan.
+
+\textbf{Iteration 1.} The most negative entry in the $-f$ row is $-1$, and
+$x_A$ and $x_B$ tie, because each part adds one unit of output. Either may
+enter. We choose $x_A$. The ratio test on the $x_A$ column:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Row & Ratio & Meaning \\
+\midrule
+$s_L$ (lathe)    & $2400/0.6 = 4000$ & the lathe would last for 4000 of part A \\
+$s_S$ (shaper)   & $720/0.4 = 1800$  & smallest --- the shaper runs out first \\
+$s_D$ (drilling) & $960/0.1 = 9600$  & drilling would last for 9600 \\
+$s_M$ (milling)  & $1440/0.5 = 2880$ & milling would last for 2880 \\
+$s_G$ (grinding) & $1200/0.2 = 6000$ & grinding would last for 6000 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+So $s_S$ leaves and the pivot element is the 0.4.
+
+\emph{Step A} --- divide the pivot row by 0.4:
+\[
+  R_2 \leftarrow R_2/0.4 \;=\; \rowv{1 & 0.25 & 0 & 2.5 & 0 & 0 & 0 & 1800}
+\]
+
+\emph{Step B} --- clear the $x_A$ column with that new $R_2$. The first one in
+full; the others work the same way:
+\begin{align*}
+  R_1 \leftarrow R_1 - 0.6R_2: \quad
+  & \rowv{0.6 & 0.9 & 1 & 0 & 0 & 0 & 0 & 2400} \\
+  -\,0.6\times & \rowv{1 & 0.25 & 0 & 2.5 & 0 & 0 & 0 & 1800} \\
+  = & \rowv{0 & 0.75 & 1 & -1.5 & 0 & 0 & 0 & 1320} \\
+  R_3 \leftarrow R_3 - 0.1R_2 \;=\; & \rowv{0 & 0.175 & 0 & -0.25 & 1 & 0 & 0 & 780} \\
+  R_4 \leftarrow R_4 - 0.5R_2 \;=\; & \rowv{0 & 0.175 & 0 & -1.25 & 0 & 1 & 0 & 540} \\
+  R_5 \leftarrow R_5 - 0.2R_2 \;=\; & \rowv{0 & 0.25 & 0 & -0.5 & 0 & 0 & 1 & 840} \\
+  R_{-f} \leftarrow R_{-f} + R_2 \;=\; & \rowv{0 & -0.75 & 0 & 2.5 & 0 & 0 & 0 & 1800}
+\end{align*}
+
+\begin{tableau}{Tableau after iteration 1}
+\begin{tabular}{l|rrrrrrr|r}
+basis & $x_A$ & $x_B$ & $s_L$ & $s_S$ & $s_D$ & $s_M$ & $s_G$ & RHS \\
+\hline
+$s_L$ & 0 & \piv{0.75} & 1 & $-1.5$  & 0 & 0 & 0 & 1320 \\
+$x_A$ & 1 & 0.25  & 0 & 2.5     & 0 & 0 & 0 & 1800 \\
+$s_D$ & 0 & 0.175 & 0 & $-0.25$ & 1 & 0 & 0 & 780 \\
+$s_M$ & 0 & 0.175 & 0 & $-1.25$ & 0 & 1 & 0 & 540 \\
+$s_G$ & 0 & 0.25  & 0 & $-0.5$  & 0 & 0 & 1 & 840 \\
+\hline
+$-f$  & 0 & $-0.75$ & 0 & 2.5 & 0 & 0 & 0 & 1800 \\
+\end{tabular}
+\end{tableau}
+
+We are now at the vertex $(x_A, x_B) = (1800, 0)$: make only part A, 1800 a
+month. $s_S = 0$, so the shaper constraint is now active. The $-f$ row still has
+a negative entry, $-0.75$ under $x_B$, so making some part B would raise output.
+
+\textbf{Iteration 2.} $x_B$ enters. The ratio test on the $x_B$ column:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Row & Ratio & Meaning \\
+\midrule
+$s_L$ (lathe)    & $1320/0.75 = 1760$       & smallest --- the lathe runs out first \\
+$x_A$            & $1800/0.25 = 7200$       & we would run out of part A to trade away \\
+$s_D$ (drilling) & $780/0.175 \approx 4457$ & drilling still has room \\
+$s_M$ (milling)  & $540/0.175 \approx 3086$ & milling still has room \\
+$s_G$ (grinding) & $840/0.25 = 3360$        & grinding still has room \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+So $s_L$ leaves and the pivot element is the 0.75.
+
+\emph{Step A} --- divide the pivot row by 0.75:
+\[
+  R_1 \leftarrow R_1/0.75 \;=\; \rowv{0 & 1 & \tfrac{4}{3} & -2 & 0 & 0 & 0 & 1760}
+\]
+
+\emph{Step B} --- clear the $x_B$ column with that new $R_1$:
+\begin{align*}
+  R_2 \leftarrow R_2 - 0.25R_1: \quad
+  & \rowv{1 & 0.25 & 0 & 2.5 & 0 & 0 & 0 & 1800} \\
+  -\,0.25\times & \rowv{0 & 1 & \tfrac{4}{3} & -2 & 0 & 0 & 0 & 1760} \\
+  = & \rowv{1 & 0 & -\tfrac{1}{3} & 3 & 0 & 0 & 0 & 1360} \\
+  R_3 \leftarrow R_3 - 0.175R_1 \;=\; & \rowv{0 & 0 & -\tfrac{7}{30} & 0.1 & 1 & 0 & 0 & 472} \\
+  R_4 \leftarrow R_4 - 0.175R_1 \;=\; & \rowv{0 & 0 & -\tfrac{7}{30} & -0.9 & 0 & 1 & 0 & 232} \\
+  R_5 \leftarrow R_5 - 0.25R_1 \;=\; & \rowv{0 & 0 & -\tfrac{1}{3} & 0 & 0 & 0 & 1 & 400} \\
+  R_{-f} \leftarrow R_{-f} + 0.75R_1 \;=\; & \rowv{0 & 0 & 1 & 1 & 0 & 0 & 0 & 3120}
+\end{align*}
+
+\begin{tableau}{Final tableau}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{l|rrrrrrr|r}
+basis & $x_A$ & $x_B$ & $s_L$ & $s_S$ & $s_D$ & $s_M$ & $s_G$ & RHS \\
+\hline
+$x_B$ & 0 & 1 & $\tfrac{4}{3}$   & $-2$   & 0 & 0 & 0 & 1760 \\
+$x_A$ & 1 & 0 & $-\tfrac{1}{3}$  & 3      & 0 & 0 & 0 & 1360 \\
+$s_D$ & 0 & 0 & $-\tfrac{7}{30}$ & 0.1    & 1 & 0 & 0 & 472 \\
+$s_M$ & 0 & 0 & $-\tfrac{7}{30}$ & $-0.9$ & 0 & 1 & 0 & 232 \\
+$s_G$ & 0 & 0 & $-\tfrac{1}{3}$  & 0      & 0 & 0 & 1 & 400 \\
+\hline
+$-f$  & 0 & 0 & 1 & 1 & 0 & 0 & 0 & 3120 \\
+\end{tabular}
+\end{tableau}
+
+No entry in the $-f$ row is negative, so no neighbouring vertex is better. An LP
+is convex, so no vertex anywhere is better either. The optimum is
+\[
+  x_A^\star = 1360, \qquad x_B^\star = 1760 \ \text{units/month}, \qquad
+  f^\star = -3120,
+\]
+a total of 3120 parts a month. The answer is whole numbers, so no rounding is
+needed. Putting it back into the original constraints: the lathe uses
+$0.6(1360) + 0.9(1760) = 2400$ h and the shaper $0.4(1360) + 0.1(1760) = 720$ h.
+Both are exactly at their limit.
+
+% \subsection*{4. Shadow prices [Bonus]}
+
+% The shadow prices are the slack columns of the final $-f$ row:
+
+% \begin{center}
+% \begin{tabular}{lcccl}
+% \toprule
+% Constraint & $\lambda$ [units/h] & Status & Slack [h] & What it means \\
+% \midrule
+% lathe    & 1 & active   & 0   & bottleneck \\
+% shaper   & 1 & active   & 0   & bottleneck \\
+% drilling & 0 & inactive & 472 & 472 of 960 h idle \\
+% milling  & 0 & inactive & 232 & 232 of 1440 h idle \\
+% grinding & 0 & inactive & 400 & 400 of 1200 h idle \\
+% \bottomrule
+% \end{tabular}
+% \end{center}
+
+% \textbf{The bottlenecks} are the lathe and the shaper. Both slacks are zero, so
+% all 2400 lathe hours and all 720 shaper hours are used. One more hour on either
+% gives one more part a month.
+
+% \textbf{Which machine to buy.} A machine adds 240 h a month, so a lathe or a
+% shaper would each add $1 \times 240 = 240$ parts a month. That holds for the
+% whole machine, not only the first hour: with 240 extra hours in either group,
+% every basic variable in the final tableau stays positive, so the basis and the
+% prices do not change. The tightest case is milling, which falls to 16 h idle
+% when a shaper is added. The two are worth the same, so the choice comes down to
+% price. I would not buy a drill, a mill or a grinder.
+
+% \textbf{Why three prices are zero.} Drilling, milling and grinding already stand
+% idle for 472, 232 and 400 hours a month. A 473rd idle drilling hour is worth
+% nothing, because drilling time is not what holds the plan back. An inactive
+% constraint prices at zero, and that zero says where not to spend money.
+
+\newpage
+\section*{Question 3: A larger problem, solved in MATLAB}
+
+\subsection*{1. Formulation}
+
+The decision is which farm supplies which vegetable, so there is one variable
+per farm--vegetable pair:
+\[
+  x_{fv} = \text{tonnes of vegetable } v \text{ bought from farm } f,
+  \qquad f = 1,\dots,4, \quad v = 1,\dots,5,
+\]
+which is $4 \times 5 = 20$ design variables [t/month]. With $c_{fv}$ the price
+in \$/t, the problem is
+\begin{align*}
+  \min \quad & f = \sum_f \sum_v c_{fv} x_{fv} && \text{total cost, \$} \\
+  \text{s.t.} \quad
+  & \sum_v x_{fv} \le \text{supply}_f && \text{4 rows, one per farm} \\
+  & \sum_f x_{fv} \ge \text{demand}_v && \text{5 rows, one per vegetable} \\
+  & x_{fv} \ge 0
+\end{align*}
+
+The supply rows are $\le$ because a farm cannot deliver more than its maximum.
+The demand rows are $\ge$ because the store must buy at least what it needs.
+For \texttt{linprog} the demand rows are multiplied by $-1$ to make them $\le$.
+
+\subsection*{2. Solution}
+
+The MATLAB file is \texttt{A1\_q3.m}. It builds $c$, $A$ and $b$ from the price
+table instead of typing out the coefficients. The buying plan [t]:
+
+\begin{center}
+\begin{tabular}{lrrrrrr}
+\toprule
+ & Potato & Tomato & Okra & Eggplant & Spinach & Total \\
+\midrule
+Farm 1 & 40  & 0  & 0  & 0  & 0  & 40 \\
+Farm 2 & 0   & 0  & 20 & 0  & 20 & 40 \\
+Farm 3 & 0   & 0  & 0  & 80 & 20 & 100 \\
+Farm 4 & 60  & 60 & 0  & 0  & 0  & 120 \\
+\midrule
+Total  & 100 & 60 & 20 & 80 & 40 & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Total cost: \$173\,000 a month. Every vegetable is bought in exactly the
+required amount, since buying more only costs money.
+
+\subsection*{3. Which farms are at capacity}
+
+Farm 3 (100 t of 100) and farm 4 (120 t of 120) are at capacity. Farms 1 and 2
+are not: they deliver 40 t each, out of 180 t and 200 t.
+
+Potato and spinach are each bought from two farms. Potato is cheapest at farm 4
+(\$150/t), but farm 4 is full after 60 t of potato and 60 t of tomato, so the
+remaining 40 t comes from the next cheapest farm, farm 1 (\$200/t). Spinach is
+cheapest at farm 3 (\$1000/t), but farm 3 is full after 80 t of eggplant and
+20 t of spinach, so the other 20 t comes from farm 2 (\$1100/t). So a vegetable
+is split only when the cheap farm runs out of capacity.
+
+\end{document}
