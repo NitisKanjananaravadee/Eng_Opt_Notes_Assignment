@@ -1,0 +1,107 @@
+\documentclass[varwidth=14cm,border=10pt]{standalone}
+\usepackage{amsmath,xcolor,array}
+\usepackage{fontspec,unicode-math}
+\setmainfont{DejaVu Sans}[ItalicFont={DejaVu Sans},ItalicFeatures={FakeSlant=0.2},BoldItalicFont={DejaVu Sans Bold},BoldItalicFeatures={FakeSlant=0.2}]
+\setmathfont{texgyredejavu-math.otf}
+\setmathfont{DejaVu Sans}[range={up,bfup}]
+\setmathfont{DejaVu Sans}[range={it,bfit},FakeSlant=0.2]
+\setmathfont{texgyredejavu-math.otf}[range={"2202,"1D715,"03B5,"03F5,"2112,"2131}]
+\pagecolor[HTML]{1E1E2E}\color[HTML]{F4F4F4}
+\definecolor{accent}{HTML}{89B4FA}
+\definecolor{warn}{HTML}{F38BA8}
+\definecolor{good}{HTML}{A6E3A1}
+\newcommand{\heading}[1]{\par\medskip{\large\bfseries\color{accent}#1}\par\smallskip}
+\setlength{\parindent}{0pt}
+\raggedright
+\begin{document}
+
+{\Large\bfseries Computing $K$, and what $\det K$ tells you}
+
+\heading{A. Three ways to get $K$ --- all the same matrix}
+
+{\bfseries 1. Expand and collect} (what A2 part 1 does). Write $V$ out, expand
+every square, and read off the coefficients:
+\[
+  K_{ii}=2\times(\text{coefficient of } x_i^2), \qquad
+  K_{ij}=\text{coefficient of } x_ix_j \ \ (i\neq j).
+\]
+{\color{warn}Mind the factor 2:} the cross term $x_ix_j$ appears {\itshape twice}
+in $\tfrac12x^{\!\top}\!Kx$, once as $K_{ij}$ and once as $K_{ji}$. That is the
+single most common slip.
+
+{\bfseries 2. The touching rule} (fastest by hand):
+\[
+  K_{ii}=\!\!\sum_{\text{springs touching } i}\!\!k,
+  \qquad K_{ij}=-k_{ij}.
+\]
+
+{\bfseries 3. Element assembly} (what a code does). Each spring is
+\[
+  k_e\begin{bmatrix}1&-1\\-1&1\end{bmatrix}
+\]
+scattered into the rows/columns of its two nodes and summed. Then {\bfseries
+condense}: strike the rows and columns of prescribed freedoms (the walls).
+Before condensing, $K$ is singular --- rows sum to zero, because translating
+everything stretches nothing.
+
+\heading{B. $\det K$ --- three equivalent recipes}
+For $3\times3$, cofactor expansion along row 1:
+\[
+  \det K = a(ei-fh)-b(di-fg)+c(dh-eg).
+\]
+Equivalently: {\bfseries the product of the eigenvalues}, or {\bfseries the
+product of the pivots} from Gaussian elimination (what MATLAB's \texttt{det}
+actually uses --- an LU factorisation, not cofactors).
+
+For your A2 matrix:
+\[
+  \det K = 2.58375\times10^{11}
+\]
+\[
+  \lambda_1\lambda_2\lambda_3=2714.40\times7369.78\times12915.82
+  =2.58375\times10^{11}\ {\color{good}✓}
+\]
+
+\heading{C. What it means}
+\[
+  \det K \neq 0 \iff K \text{ invertible} \iff Kx=P \text{ has exactly one solution.}
+\]
+So $\det K\neq0$ is the statement {\bfseries ``the structure cannot move for
+free''}. A free-floating structure has $\det K=0$: it can translate with no
+energy cost, so equilibrium does not pin it down. Grounding to the walls is what
+makes $\det K\neq0$ here.
+
+Geometrically $|\det K|$ is the volume scaling of the map $x\mapsto Kx$, so a
+{\itshape small} determinant means a nearly-flat direction.
+
+\heading{D. Where your exact answer came from}
+Cramer's rule: replace column $k$ of $K$ by $P$ and divide.
+\[
+  \begin{array}{@{}l@{}}
+    x_1=\bigl(8.375\times10^{10}\bigr)/\det K=670/2067\\[2pt]
+    x_2=\bigl(2.16\times10^{11}\bigr)/\det K=576/689\\[2pt]
+    x_3=\bigl(9.5\times10^{10}\bigr)/\det K=760/2067
+  \end{array}
+\]
+and the odd denominator is no mystery:
+\[
+  \det K = 2067\times1.25\times10^{8}.
+\]
+{\color{good}That is why 2067 appears in the exact solution in your report.}
+
+\heading{E. Determinant vs.\ the thing you actually want}
+{\color{warn}$\det K$ is a poor health check.} Scale $K$ by 10 and the
+determinant grows by $10^3$ while the problem is unchanged. Use instead:
+\begin{itemize}\itemsep0pt
+\item {\bfseries Sylvester} --- leading principal minors, all $>0$ proves
+      positive definite:
+      \[
+        8500>0,\qquad 2.45\times10^{7}>0,\qquad 2.58375\times10^{11}>0. \ {\color{good}✓}
+      \]
+\item {\bfseries Condition number} $\kappa=\lambda_{\max}/\lambda_{\min}=4.76$
+      --- scale-invariant, and the number that predicts solver behaviour.
+\end{itemize}
+A matrix can have a huge determinant and still be nearly singular. $\kappa$
+knows the difference; $\det$ does not.
+
+\end{document}

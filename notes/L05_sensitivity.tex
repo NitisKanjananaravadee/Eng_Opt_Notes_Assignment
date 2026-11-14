@@ -1,0 +1,124 @@
+\documentclass[varwidth=14cm,border=10pt]{standalone}
+\usepackage{amsmath,xcolor,array}
+\usepackage{fontspec,unicode-math}
+\setmainfont{DejaVu Sans}[ItalicFont={DejaVu Sans},ItalicFeatures={FakeSlant=0.2},BoldItalicFont={DejaVu Sans Bold},BoldItalicFeatures={FakeSlant=0.2}]
+\setmathfont{texgyredejavu-math.otf}
+\setmathfont{DejaVu Sans}[range={up,bfup}]
+\setmathfont{DejaVu Sans}[range={it,bfit},FakeSlant=0.2]
+\setmathfont{texgyredejavu-math.otf}[range={"2202,"1D715,"03B5,"03F5,"2112,"2131}]% keep partial, epsilon, script caps
+\pagecolor[HTML]{1E1E2E}\color[HTML]{F4F4F4}
+\definecolor{accent}{HTML}{89B4FA}
+\definecolor{warn}{HTML}{F38BA8}
+\definecolor{good}{HTML}{A6E3A1}
+\newcommand{\heading}[1]{\par\medskip{\large\bfseries\color{accent}#1}\par\smallskip}
+\setlength{\parindent}{0pt}
+\raggedright
+\begin{document}
+
+{\Large\bfseries L05 — Implicit sensitivity: FD, direct, adjoint}
+
+\heading{1. The setting}
+The design is $x\in\mathbb{R}^{n}$. The physics is a linear system whose matrix is built from
+the design, linearly:
+\[
+  A(x)\,p = q,\qquad A(x)=\sum_{e=1}^{n} x_e A_e,\qquad \frac{\partial A}{\partial x_e}=A_e .
+\]
+The response is a linear functional of the state:
+\[
+  f(x) = c^{\!\top} p(x).
+\]
+There is {\itshape no formula} for $p$. It exists only as the output of a solve, so $f$ is an
+{\bfseries implicit} function of $x$.
+
+\heading{2. Where the implicitness lives}
+In general $f$ can depend on $x$ twice over, and the chain rule keeps both:
+\[
+  \frac{df}{dx_e}
+  = \underbrace{\frac{\partial f}{\partial x_e}\bigg|_{p\ \text{fixed}}}_{\text{explicit — free}}
+  \; + \;
+  \underbrace{\left(\frac{\partial f}{\partial p}\right)^{\!\top}\frac{\partial p}{\partial x_e}}_{\text{implicit — the hard one}} .
+\]
+For $f=c^{\!\top}p$ the explicit term vanishes ($f$ contains no $x$ of its own), so
+$\partial f/\partial p = c$ and everything hangs on $\partial p/\partial x_e$.
+
+\textcolor{good}{Do not over-generalise:} the volume budget $\sum_e L_e x_e \le V$ is the
+opposite extreme — purely explicit, no state in it, gradient $=L_e$, free.
+
+\heading{3. Method 1 — finite differences}
+\[
+  \frac{df}{dx_e}\approx\frac{f(x+h e_e)-f(x)}{h}
+  \quad\text{(forward, } O(h)\text{)},\qquad
+  \frac{f(x+h e_e)-f(x-h e_e)}{2h}
+  \quad\text{(central, } O(h^2)\text{)}.
+\]
+\[
+  \text{cost: } n+1 \text{ solves (forward)},\qquad 2n \text{ solves (central)} .
+\]
+Two errors fight: truncation $\sim h^{k}$ falls as $h\to0$, round-off
+$\sim \varepsilon_{\text{mach}}/h$ grows. The optimal $h$ cannot be found without knowing the
+answer. \textcolor{warn}{Verification only — never production.}
+
+\heading{4. Method 2 — direct differentiation}
+$A(x)p(x)=q$ holds for all $x$, so differentiate the whole equation ($q$ fixed):
+\[
+  \frac{\partial A}{\partial x_e}p + A\frac{\partial p}{\partial x_e} = 0
+  \;\Longrightarrow\;
+  \boxed{\;A\,\frac{\partial p}{\partial x_e} = -A_e\,p\;}
+\]
+Same matrix $A$, new right-hand side. $-A_e p$ is the {\bfseries pseudo-load}: the
+out-of-balance you create by changing $x_e$ with the state frozen. Then
+$df/dx_e = c^{\!\top}(\partial p/\partial x_e)$.
+\[
+  \text{cost: } 1 + n \text{ solves} \qquad\text{— one per \textcolor{accent}{design variable}.}
+\]
+
+\heading{5. Method 3 — the adjoint}
+Attach a multiplier to the analysis, exactly as in L04:
+\[
+  \mathcal{L} = c^{\!\top}p + \lambda^{\!\top}\!\left(Ap-q\right).
+\]
+The bracket is identically zero at the solution, so $\mathcal{L}=f$ for {\itshape any}
+$\lambda$. That freedom is the whole trick. Differentiating,
+\[
+  \frac{df}{dx_e}
+  = \underbrace{\left(c^{\!\top}+\lambda^{\!\top}A\right)}_{\text{choose }\lambda\text{ to kill this}}
+    \frac{\partial p}{\partial x_e}
+  \;+\;\lambda^{\!\top}A_e\,p .
+\]
+Demand $c^{\!\top}+\lambda^{\!\top}A=0$:
+\[
+  \boxed{\;A^{\!\top}\lambda = -c\;}\qquad\Longrightarrow\qquad
+  \boxed{\;\frac{df}{dx_e} = \lambda^{\!\top}A_e\,p\quad\text{for every }e\;}
+\]
+\[
+  \text{cost: } 1 + n_r \text{ solves} \qquad\text{— one per \textcolor{accent}{response}.}
+\]
+
+\heading{6. The counting rule}
+\begin{center}
+\begin{tabular}{lll}
+ & solves & indexed by\\[2pt]
+direct  & $1+n$   & design variables\\
+adjoint & $1+n_r$ & responses\\
+\end{tabular}
+\end{center}
+Neither is better. Count $n$ against $n_r$, pick the smaller. One direct solve fills a whole
+{\itshape column} of the Jacobian $\partial p_k/\partial x_e$; one adjoint solve fills a whole
+{\itshape row}.
+
+\heading{7. Self-adjointness}
+If $A=A^{\!\top}$ and $c=q$ (the response is measured where the load is applied), then
+$A\lambda=-q$ is the analysis already solved:
+\[
+  \lambda=-p\qquad\Longrightarrow\qquad
+  \frac{df}{dx_e} = -\,p^{\!\top}A_e\,p \;\le\; 0
+  \quad\text{if } A_e \succeq 0 .
+\]
+The adjoint solve disappears: the gradient is free. For the pipe network
+$A_e=(e_i-e_j)(e_i-e_j)^{\!\top}$, so
+\[
+  \frac{df}{dx_e} = -\left(p_i-p_j\right)^{2}
+  \quad\text{— minus the squared pressure drop across pipe } e .
+\]
+
+\end{document}

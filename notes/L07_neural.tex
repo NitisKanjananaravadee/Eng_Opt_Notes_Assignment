@@ -1,0 +1,142 @@
+\documentclass[varwidth=14cm,border=10pt]{standalone}
+\usepackage{amsmath,xcolor,array}
+\usepackage{fontspec,unicode-math}
+\setmainfont{DejaVu Sans}[ItalicFont={DejaVu Sans},ItalicFeatures={FakeSlant=0.2},BoldItalicFont={DejaVu Sans Bold},BoldItalicFeatures={FakeSlant=0.2}]
+\setmathfont{texgyredejavu-math.otf}
+\setmathfont{DejaVu Sans}[range={up,bfup}]
+\setmathfont{DejaVu Sans}[range={it,bfit},FakeSlant=0.2]
+\setmathfont{texgyredejavu-math.otf}[range={"2202,"1D715,"03B5,"03F5,"2112,"2131}]% keep partial, epsilon, script caps
+\pagecolor[HTML]{1E1E2E}\color[HTML]{F4F4F4}
+\definecolor{accent}{HTML}{89B4FA}
+\definecolor{warn}{HTML}{F38BA8}
+\definecolor{good}{HTML}{A6E3A1}
+\newcommand{\heading}[1]{\par\medskip{\large\bfseries\color{accent}#1}\par\smallskip}
+\setlength{\parindent}{0pt}
+\raggedright
+\begin{document}
+
+{\Large\bfseries L07 — Neural networks and surrogate models}
+
+{\itshape Still an optimisation lecture: training is L03's unconstrained minimisation, and the
+gradient is analytic (back propagation), not finite-difference — exactly as L06's compliance
+sensitivity was.}
+
+\heading{1. One neuron}
+\[
+  a = \sum_i w_i x_i + b,\qquad h = \varphi(a)
+\]
+$w_i$ = how much notice this neuron takes of input $i$; $b$ = what it contributes before any
+input arrives; $\varphi$ = the bend.
+
+In a hidden layer $\varphi$ must be {\bfseries nonlinear} (else the whole network collapses to
+one linear map) and {\bfseries differentiable} (the optimiser needs a gradient).
+\[
+  \varphi = \tanh \;(\texttt{tansig}) \text{ in the hidden layer},\qquad
+  \varphi = \text{identity} \;(\texttt{purelin}) \text{ at the output}.
+\]
+A linear output layer is what lets the network reach any real value, unbounded.
+
+\heading{2. One hidden layer, written out}
+With one input $x$, three hidden neurons, one output:
+\[
+  a_j = w_j x + b_j,\qquad h_j = \tanh a_j,\qquad
+  \hat y = \sum_{j=1}^{3} v_j h_j + c .
+\]
+Parameters $\theta = (w_1,w_2,w_3,\;b_1,b_2,b_3,\;v_1,v_2,v_3,\;c)$ — ten of them.
+
+\heading{3. Back propagation = the chain rule, bookkept}
+For one data point, with residual $r=\hat y-y$ and $J=r^2$:
+\[
+  \frac{\partial J}{\partial v_j}
+  = \underbrace{\frac{\partial J}{\partial \hat y}}_{2r}\underbrace{\frac{\partial \hat y}{\partial v_j}}_{h_j}
+  = 2r\,h_j,
+  \qquad
+  \frac{\partial J}{\partial c} = 2r
+\]
+\[
+  \frac{\partial J}{\partial w_j}
+  = \underbrace{\frac{\partial J}{\partial \hat y}}_{2r}
+    \underbrace{\frac{\partial \hat y}{\partial h_j}}_{v_j}
+    \underbrace{\frac{\partial h_j}{\partial a_j}}_{1-h_j^2}
+    \underbrace{\frac{\partial a_j}{\partial w_j}}_{x}
+  = 2r\,v_j\left(1-h_j^{2}\right)x,
+  \qquad
+  \frac{\partial J}{\partial b_j} = 2r\,v_j\left(1-h_j^{2}\right)
+\]
+A bias reaches $J$ by exactly its weight's route; only the last link differs
+($\partial a_j/\partial b_j = 1$ against $\partial a_j/\partial w_j = x$).
+Note $\tanh' = 1-\tanh^2$ — the derivative is free once the forward pass is done.
+
+\heading{4. From one point to all of them}
+\[
+  \min_{\theta}\; J(\theta) = \frac{1}{N}\sum_{i=1}^{N}\left(\hat y(x_i)-y_i\right)^{2}
+  \qquad\Longrightarrow\qquad
+  \nabla J = \frac{1}{N}\sum_{i=1}^{N}\nabla J_i
+\]
+Nothing is reusable between points ($a_j,h_j,r$ all depend on $x_i$), so $N$ points cost $N$
+forward sweeps and $N$ backward sweeps per epoch. {\itshape That is where the cost is.}
+
+Hand an optimiser $J(\theta)$ and $\nabla J(\theta)$ and it does the rest — direction, step
+length, stopping. \texttt{trainscg} = scaled conjugate gradient (gradients only, no Hessian).
+\textcolor{good}{\texttt{[net,tr] = train(net,P,T)} \textit{is} the optimisation.}
+
+\heading{5. What the toolbox does for you}
+{\bfseries Scaling.} $\tanh$ bends only over roughly $\pm2$; unscaled inputs saturate every
+neuron, where $1-h^2\approx0$ and the gradient dies. \texttt{mapminmax} is applied
+automatically, inside the net object, so you query in physical units.
+
+{\bfseries Splitting} (\texttt{dividerand}, default $70/15/15$):
+\begin{center}
+\begin{tabular}{ll}
+train      & the only set whose errors move the weights\\
+validation & decides {\itshape when to stop}; never enters the gradient\\
+test       & touched once, at the end — the honest error\\
+\end{tabular}
+\end{center}
+
+\heading{6. Five stopping rules — read \texttt{tr.stop}}
+\begin{center}
+\begin{tabular}{lll}
+\texttt{max\_fail} & 6 & validation MSE failed to beat its best 6 epochs running\\
+\texttt{epochs}    & e.g.\ 1000 & \textcolor{warn}{ran out of patience — not converged}\\
+\texttt{min\_grad} & $10^{-6}$ & gradient flat\\
+\texttt{time}      & $\infty$ & wall clock\\
+\texttt{goal}      & $0$ & target MSE reached\\
+\end{tabular}
+\end{center}
+{\bfseries The weights kept are \texttt{tr.best\_epoch}'s, not the last epoch's.} If best was
+epoch 20 and it ran to 26, $26-20=6$: that is \texttt{max\_fail} firing, and it stopped
+{\itshape correctly}. A run that stops on \texttt{epochs} must be rerun with more.
+
+\heading{7. Overfitting, stated precisely}
+Same network, same data, only the stopping rule changed:
+\[
+  \text{training MSE } \downarrow \text{ monotonically}, \qquad
+  \text{validation / test MSE } \downarrow \text{ then } \uparrow .
+\]
+Training error is not evidence of anything. Early stopping on validation {\itshape is} the
+regulariser.
+
+\heading{8. Using a surrogate — the trap}
+The network learned $x \approx \texttt{net}(\text{query})$ from examples. It never learned the
+{\itshape constraint}. So a raw prediction generally violates the volume budget at the query
+point. Repair by rescaling the whole design onto the budget:
+\[
+  x^{\text{pred}} \;\longrightarrow\;
+  x^{\text{scaled}} = x^{\text{pred}}\cdot\frac{V_{\text{query}}}{\sum_e L_e A_e(x^{\text{pred}})}
+\]
+then analyse $x^{\text{scaled}}$ with the {\itshape real} FEA to get $f$, and compare against
+$f^{*}$ from a true optimisation at the same query. $f/f^{*}\ge1$ always; how close to 1 is the
+surrogate's score.
+
+\textcolor{warn}{Extrapolation:} a query outside the training box has no basis in the data.
+$\tanh$ saturates and the prediction degrades to nonsense — smoothly and without warning. The
+network cannot tell you it is out of its depth.
+
+\heading{9. Depth}
+\texttt{fitnet(80)} = one hidden layer of 80. \texttt{fitnet([80 80])} = two layers; the second
+layer's inputs are the first layer's outputs. More capacity fits the training set better and
+needs more epochs; whether it generalises is a {\itshape test-set} question, not a training-set
+one.
+
+\end{document}

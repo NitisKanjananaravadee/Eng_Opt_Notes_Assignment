@@ -1,0 +1,94 @@
+\documentclass[varwidth=14cm,border=10pt]{standalone}
+\usepackage{amsmath,xcolor,array}
+\usepackage{fontspec,unicode-math}
+\setmainfont{DejaVu Sans}[ItalicFont={DejaVu Sans},ItalicFeatures={FakeSlant=0.2},BoldItalicFont={DejaVu Sans Bold},BoldItalicFeatures={FakeSlant=0.2}]
+\setmathfont{texgyredejavu-math.otf}
+\setmathfont{DejaVu Sans}[range={up,bfup}]
+\setmathfont{DejaVu Sans}[range={it,bfit},FakeSlant=0.2]
+\setmathfont{texgyredejavu-math.otf}[range={"2202,"1D715,"03B5,"03F5,"2112,"2131}]
+\pagecolor[HTML]{1E1E2E}\color[HTML]{F4F4F4}
+\definecolor{accent}{HTML}{89B4FA}
+\definecolor{warn}{HTML}{F38BA8}
+\definecolor{good}{HTML}{A6E3A1}
+\newcommand{\heading}[1]{\par\medskip{\large\bfseries\color{accent}#1}\par\smallskip}
+\setlength{\parindent}{0pt}
+\raggedright
+\begin{document}
+
+{\Large\bfseries Design, state, load --- the three roles}
+
+\heading{1. One equation, three roles}
+\[
+  \underbrace{A(x)}_{\text{you build it}}\ \underbrace{p}_{\text{physics returns it}}
+  =\ \underbrace{q}_{\text{the world imposes it}}
+\]
+\begin{center}
+\begin{tabular}{@{}l@{\ \ }l@{\ \ }l@{}}
+\textbf{design} $x$ & what you {\itshape choose} & the optimiser's unknowns\\
+\textbf{state} $p$ or $u$ & what {\itshape comes back} & only from a solve\\
+\textbf{load} $q$ or $f$ & what is {\itshape given} & a parameter, not a variable\\
+\end{tabular}
+\end{center}
+
+{\bfseries The analogy.} The design is the shape of the bowl. The load is where
+you pour the water. The state is where the water ends up. You control the bowl;
+you do not control where the water settles --- you can only {\itshape find out},
+by pouring.
+
+\heading{2. The test that separates them}
+Ask: {\itshape can I write it down without solving anything?}
+\[
+  \begin{array}{@{}l@{\quad}l@{}}
+    \text{yes, it is mine to set} & \Rightarrow \text{design}\\
+    \text{yes, it was handed to me} & \Rightarrow \text{load}\\
+    \text{no --- I must run an analysis} & \Rightarrow \text{state}
+  \end{array}
+\]
+{\color{warn}The state is never a design variable.} ``I will just choose the
+displacement I want'' is the classic beginner error: $p$ is not yours to choose,
+it is the consequence of what you chose.
+
+\heading{3. Responses --- what you build from the state}
+A {\bfseries response} is any quantity you get by running the analysis:
+\[
+  f = f(p,x).
+\]
+The objective is one response; every constraint that mentions $p$ is another.
+\begin{center}
+\begin{tabular}{@{}l@{\ \ }l@{}}
+pump head $f=p_1$ & implicit --- needs $p$\\
+pressure limit $p_k\ge p_{\min}$ & implicit --- needs $p$\\
+volume $\sum_e L_ex_e\le V$ & {\color{good}explicit --- free}\\
+\end{tabular}
+\end{center}
+That last row is A3 Q1 item 4: a constraint written in $x$ alone costs no
+analysis, because it never asks the physics anything.
+
+\heading{4. The same three roles, four times in this course}
+\begin{center}
+\begin{tabular}{@{}l@{\ \ }l@{\ \ }l@{\ \ }l@{}}
+ & \textbf{design} & \textbf{state} & \textbf{load}\\[2pt]
+springs (A2) & --- ($k$ given) & displacements $u$ & forces $P$\\
+pipes (L05, A3\,Q1) & conductances $x_e$ & pressures $p$ & injection $q$\\
+truss (L06, A3\,Q2) & areas $a_e$ & displacements $u$ & point load $F$\\
+store (L08, A4\,Q2) & quantities $x$ & --- & demand (random)\\
+\end{tabular}
+\end{center}
+{\bfseries A2 has no design.} The stiffnesses were {\itshape given}, so there was
+nothing to optimise over --- you solved the physics once. L05 promotes those
+same element properties to design variables, and that single promotion is what
+creates the whole subject of sensitivity analysis.
+
+\heading{5. Why the load matters more than it looks}
+$q$ is {\itshape given}, so $\partial q/\partial x=0$. That is the step that
+makes direct differentiation work:
+\[
+  A(x)p=q \ \Longrightarrow\ A_e p+A\frac{\partial p}{\partial x_e}
+  =\underbrace{\frac{\partial q}{\partial x_e}}_{=\,0}
+  \ \Longrightarrow\ A\frac{\partial p}{\partial x_e}=-A_e p .
+\]
+{\color{warn}If the load depended on the design} --- self-weight, say, where
+thicker bars are heavier --- that term would survive and every formula in
+Lecture 5 would gain a piece.
+
+\end{document}

@@ -1,0 +1,106 @@
+\documentclass[varwidth=14cm,border=10pt]{standalone}
+\usepackage{amsmath,xcolor,array}
+\usepackage{fontspec,unicode-math}
+\setmainfont{DejaVu Sans}[ItalicFont={DejaVu Sans},ItalicFeatures={FakeSlant=0.2},BoldItalicFont={DejaVu Sans Bold},BoldItalicFeatures={FakeSlant=0.2}]
+\setmathfont{texgyredejavu-math.otf}
+\setmathfont{DejaVu Sans}[range={up,bfup}]
+\setmathfont{DejaVu Sans}[range={it,bfit},FakeSlant=0.2]
+\setmathfont{texgyredejavu-math.otf}[range={"2202,"1D715,"03B5,"03F5,"2112,"2131}]
+\pagecolor[HTML]{1E1E2E}\color[HTML]{F4F4F4}
+\definecolor{accent}{HTML}{89B4FA}
+\definecolor{warn}{HTML}{F38BA8}
+\definecolor{good}{HTML}{A6E3A1}
+\newcommand{\heading}[1]{\par\medskip{\large\bfseries\color{accent}#1}\par\smallskip}
+\setlength{\parindent}{0pt}
+\raggedright
+\begin{document}
+
+{\Large\bfseries The quadratic form}
+
+\heading{1. Definition}
+A {\bfseries quadratic form} is a function in which {\itshape every term has
+degree exactly two}:
+\[
+  q(x)=x^{\!\top}\!Ax=\sum_{i}\sum_{j} a_{ij}\,x_i x_j .
+\]
+No linear term, no constant. In two variables:
+\[
+  \begin{bmatrix}x_1&x_2\end{bmatrix}
+  \begin{bmatrix}a&b\\c&d\end{bmatrix}
+  \begin{bmatrix}x_1\\x_2\end{bmatrix}
+  = a x_1^2+(b+c)\,x_1x_2+d\,x_2^2 .
+\]
+It is the matrix version of ``$ax^2$'' for vectors.
+
+\heading{2. Why the matrix is always symmetric}
+Notice only $b+c$ appeared --- the split between $b$ and $c$ is invisible. In
+general, for any $A$,
+\[
+  x^{\!\top}\!Ax=x^{\!\top}\!\left(\tfrac{A+A^{\!\top}}{2}\right)x ,
+\]
+because the antisymmetric part contributes nothing. So we {\itshape always}
+take $A$ symmetric --- not an assumption, a normalisation. It makes the matrix
+unique, and it is why stiffness matrices in this course are symmetric by
+construction.
+
+\heading{3. The general quadratic function}
+Add a linear term and you have everything this course calls quadratic:
+\[
+  \boxed{\;f(x)=\tfrac12 x^{\!\top}\!Kx-x^{\!\top}\!P+c\;}
+\]
+\[
+  \nabla f = Kx-P, \qquad \nabla^2 f = K \ \ (\text{constant}).
+\]
+{\color{good}The $\tfrac12$ exists so that the gradient is $Kx$ and not $2Kx$.}
+That is its only job.
+
+Setting $\nabla f=0$ gives $Kx=P$: {\bfseries minimising a quadratic is solving
+a linear system}, and conversely. This is the identity behind L03's spring
+system and behind A2 Question 1.
+
+\heading{4. The shape, read off the eigenvalues}
+$K$ symmetric $\Rightarrow$ real eigenvalues $\lambda_i$ and orthogonal
+eigenvectors. Along eigenvector $v_i$ the form is just $\lambda_i t^2$, so:
+\[
+  \begin{array}{@{}l@{\quad}l@{}}
+    \text{all } \lambda_i>0 & \text{positive definite --- a bowl, one minimum}\\
+    \text{all } \lambda_i\ge0 & \text{positive semidefinite --- a trough, a flat valley of minima}\\
+    \text{mixed signs} & \text{indefinite --- a saddle, no minimum}\\
+    \text{all } \lambda_i<0 & \text{negative definite --- a dome, a maximum}
+  \end{array}
+\]
+Level sets $q(x)=\text{const}$ are ellipsoids with semi-axes
+$\propto 1/\sqrt{\lambda_i}$. The {\bfseries condition number}
+$\kappa=\lambda_{\max}/\lambda_{\min}$ is how elongated the bowl is --- and
+therefore how badly steepest descent zig-zags.
+
+\heading{5. Four equivalent tests for positive definite}
+\begin{itemize}\itemsep0pt
+\item $x^{\!\top}\!Kx>0$ for every $x\neq0$ \ (the definition)
+\item every eigenvalue $>0$
+\item every leading principal minor $>0$ \ (Sylvester)
+\item Cholesky $K=LL^{\!\top}$ runs without complaint \ (what a solver uses)
+\end{itemize}
+
+\heading{6. Why this course keeps meeting it}
+{\bfseries It is the second-order Taylor model.} Near any point,
+\[
+  f(x+p)\approx f(x)+\nabla f^{\!\top}p+\tfrac12 p^{\!\top}\nabla^2\! f\,p .
+\]
+Every method in L03--L04 is built on this: Newton minimises the quadratic model
+exactly; quasi-Newton builds an approximate $\nabla^2 f$; convexity is
+$\nabla^2 f\succeq0$; a minimum is certified by $\nabla f=0$ {\itshape plus}
+$\nabla^2 f\succ0$. {\color{good}Quadratic forms are the local language of all
+smooth optimisation.}
+
+{\bfseries It is also the physics.} Strain energy is $\tfrac12 x^{\!\top}\!Kx$;
+compliance is $q^{\!\top}p$; and in A3 Question 1 the sensitivity
+\[
+  \frac{df}{dx_e}=-\,p^{\!\top}\!A_e\,p=-\left(p_i-p_j\right)^2
+\]
+is a quadratic form in the pressures. $A_e$ is positive {\itshape semi}definite,
+so that form can never be negative --- which is exactly why every sensitivity
+is $\le0$. {\color{warn}The sign argument is the definiteness of a quadratic
+form, nothing more.}
+
+\end{document}
