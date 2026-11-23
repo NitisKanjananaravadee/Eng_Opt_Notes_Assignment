@@ -1,0 +1,235 @@
+\documentclass[varwidth=15.5cm,border=10pt]{standalone}
+\usepackage{amsmath,xcolor,array}
+\usepackage{fontspec,unicode-math}
+\setmainfont{DejaVu Sans}[ItalicFont={DejaVu Sans},ItalicFeatures={FakeSlant=0.2},BoldItalicFont={DejaVu Sans Bold},BoldItalicFeatures={FakeSlant=0.2}]
+\setmathfont{texgyredejavu-math.otf}
+\setmathfont{DejaVu Sans}[range={up,bfup}]
+\setmathfont{DejaVu Sans}[range={it,bfit},FakeSlant=0.2]
+\setmathfont{texgyredejavu-math.otf}[range={"2202,"1D715,"03BB,"03A3,"2211,"2112,"2131}]
+\pagecolor[HTML]{1E1E2E}\color[HTML]{F4F4F4}
+\definecolor{accent}{HTML}{89B4FA}
+\definecolor{warn}{HTML}{F38BA8}
+\definecolor{good}{HTML}{A6E3A1}
+\definecolor{ref}{HTML}{9399B2}
+\newcommand{\heading}[1]{\par\medskip{\large\bfseries\color{accent}#1}\par\smallskip}
+\newcommand{\src}[1]{{\color{ref}\small[#1]}}
+\setlength{\parindent}{0pt}
+\setlength{\tabcolsep}{5pt}
+\raggedright
+\begin{document}
+
+{\Large\bfseries L06 / A3 Question 2 --- every symbol, in one place}
+
+{\color{ref}Values in the last column are the \textbf{baseline} run:
+$7\times5$ nodes, \texttt{'full'}, $6\times4$~m.}
+
+\heading{The one chain --- read this first}
+Everything in the lecture is one composition. Each arrow is a named thing, and
+each is a function of the one before it:
+\[
+  \underbrace{x}_{\text{what you choose}}
+  \ \longrightarrow\ \underbrace{a(x)}_{\text{areas}}
+  \ \longrightarrow\ \underbrace{K(a)}_{\text{stiffness}}
+  \ \longrightarrow\ \underbrace{q}_{\text{displacements}}
+  \ \longrightarrow\ \underbrace{f}_{\text{compliance}}
+  \ \longrightarrow\ \underbrace{\hat f}_{\text{what fmincon sees}}
+\]
+\[
+\begin{array}{r@{\ }l@{\qquad}l}
+ a(x) &= a_{\min} + (a_{\max}-a_{\min})\,x & \text{a FUNCTION: the areas implied by }x\\[3pt]
+ K(a) &= \textstyle\sum_e a_e K_e^{\text{unit}} & \text{linear in }a\\[3pt]
+ q    &= K(a)^{-1} f_{\text{load}} & \text{the FEA --- one linear solve}\\[3pt]
+ f(a) &= f_{\text{load}}^\top q & \text{compliance, in joules}\\[3pt]
+ \hat f(x) &= f(a(x))/f_0 & \text{dimensionless, starts at exactly }1
+\end{array}
+\]
+{\bfseries So $f(a(x))$ means:} take the design $x$, turn it into areas with
+$a(x)$, then evaluate the compliance of \emph{those} areas --- which requires an
+FEA solve. The brackets are a composition, not a product. That composition is
+why the chain rule at the bottom has exactly two factors.
+
+\heading{1 --- Design variables: what you are allowed to choose}
+\small
+\begin{tabular}{@{}ll p{3.9cm} p{3.0cm}@{}}
+symbol & code & meaning & value\\[2pt]
+$x_e$ & \texttt{x(e)} & thickness fraction of bar $e$, on a 0--1 scale & unknown\\
+$x$ & \texttt{x} & the whole design vector, $x\in[0,1]^{n_e}$ & $386\times1$\\
+$x^{(0)}$ & \texttt{x0} & starting design: uniform, budget exactly spent & --\\
+$x^\star$ & \texttt{xStar} & what fmincon returns & --\\[3pt]
+$a_e$ & \texttt{a(e)} & \emph{physical} area of bar $e$ & $10^{-7}\ldots10^{-2}$~m$^2$\\
+$a$ & \texttt{a} & area vector, $a = a(x)$ & --\\
+$a_{\min}$ & \texttt{amin} & floor: a ``removed'' bar. Not $0$, or $K$ is singular & $10^{-7}$~m$^2$\\
+$a_{\max}$ & \texttt{amax} & ceiling: a ``full'' bar & $10^{-2}$~m$^2$\\
+$a^{(0)}$ & \texttt{a0} & $V_0/\sum L_e$ in every bar & $1.74\times10^{-4}$~m$^2$\\
+$a^\star$ & \texttt{aStar} & the optimised areas & $1.5\mathrm{e}{-7}$ to $8.8\mathrm{e}{-3}$\\
+$n_e$ & \texttt{numberOfElements} & number of candidate bars & 386\\
+\end{tabular}
+\normalsize
+\par\smallskip
+{\color{accent}Why two sets?} fmincon works in $x$ because every entry is order
+one and the bounds are the trivial box $[0,1]$. You \textbf{solve in $x$,
+report in $a$}. The two conversion lines after the \texttt{fmincon} call are
+that rule.
+
+\heading{2 --- Geometry: fixed, never a variable}
+\small
+\begin{tabular}{@{}ll p{4.2cm} p{2.7cm}@{}}
+$L_x,L_y$ & \texttt{Lx, Ly} & domain size & $6\times4$~m\\
+$n_x,n_y$ & \texttt{nx, ny} & nodes across and up & 7, 5\\
+$h_x,h_y$ & --- & node spacing, $L_x/(n_x{-}1)$ & 1~m, 1~m\\
+$n_n$ & \texttt{numberOfNodes} & nodes & 35\\
+$n_d$ & \texttt{numberOfDOFs} & DOFs, $2n_n$ (two per node, no rotation) & 70\\
+$L_e$ & \texttt{elementLength(e)} & length of bar $e$ --- geometry, the nodes never move & 1 \ldots 7.21~m\\
+$L$ & \texttt{elementLength} & the length vector, so $L^\top x=\sum L_e x_e$ & $\sum L_e = 1147.12$~m\\
+\end{tabular}
+\normalsize
+
+\heading{3 --- Material and load}
+\small
+\begin{tabular}{@{}ll p{4.2cm} p{2.7cm}@{}}
+$E$ & \texttt{E} & Young's modulus (steel) & $2.1\times10^{11}$~Pa\\
+$P$ & \texttt{P} & applied load magnitude & $10^{5}$~N\\
+$f_{\text{load}}$ & \texttt{forceVector} & load vector: zeros, with $-P$ at one DOF & $70\times1$\\
+\end{tabular}
+\normalsize
+\par\smallskip
+{\color{warn}Notation clash.} The handout writes $f$ for the load vector
+\emph{and} for compliance. The code dodges it by calling the load
+\texttt{forceVector} and the displacements \texttt{q} instead of $u$. Keep them
+apart when you write it up.
+
+\heading{4 --- State: what the FEA gives you}
+\small
+\begin{tabular}{@{}ll p{4.2cm} p{2.7cm}@{}}
+$K(a)$ & \texttt{globalK} & global stiffness; depends on the design & $70\times70$\\
+$K_e^{\text{unit}}$ & \texttt{Kunit\{e\}} & bar $e$'s matrix at \emph{unit} area, so $K_e = a_eK_e^{\text{unit}}$ & $4\times4$, rank 1\\
+$q$ & \texttt{q} & nodal displacements --- the STATE, not a design variable & $70\times1$, m\\
+--- & \texttt{fixedDOFs} & supported DOFs; never solved, so $q=0$ there & 4\\
+--- & \texttt{freeDOFs} & the rest & 66\\
+\end{tabular}
+\normalsize
+\par\smallskip
+$q$ is \emph{implied} by $x$, not chosen. That is exactly Lecture 5's
+$A(x)p=q$ situation with different letters. And
+$K_e^{\text{unit}} = (E/L_e)\,b\,b^\top$ with
+$b=[-l,-m,\,l,\,m]^\top$: an outer product, so rank 1 and PSD --- it resists
+only the bar's elongation.
+
+\heading{5 --- Objective: the four f's}
+\small
+\begin{tabular}{@{}ll p{4.0cm} p{2.7cm}@{}}
+$f$ & \texttt{f} & compliance $=f_{\text{load}}^\top q = 2\times$ strain energy & J\\
+$f_0$ & \texttt{f0} & compliance of $a^{(0)}$. One extra solve, before the loop & $1.150128\mathrm{e}{+}03$~J\\
+$\hat f$ & \texttt{fhat} & $f/f_0$ --- \textbf{what fmincon minimises} & starts at 1\\
+$\hat f^\star$ & \texttt{fhatStar} & fmincon's \texttt{fval} & $0.158606$\\
+$f^\star$ & \texttt{fStar} & $\hat f^\star f_0$, back to joules & $1.824175\mathrm{e}{+}02$~J\\
+\end{tabular}
+\normalsize
+\par\smallskip
+$f_0$ is \textbf{only a scale}, not a target: any positive constant gives the
+same $a^\star$. It is chosen so $\hat f$ starts at 1 and $f_0/f^\star = 6.305$
+reads as ``6.3 times stiffer''.
+\par\smallskip
+{\color{warn}$f_0$ differs between runs}, because $a^{(0)}=V_0/\sum L_e$ and
+$\sum L_e$ changes with the ground structure. So $\hat f^\star$ and $\lambda$
+are \emph{within-run} numbers. {\bfseries Only $f^\star$ compares across runs.}
+\par\smallskip
+\small
+\begin{tabular}{@{}llrrr@{}}
+run & bars & $f_0$ & $f^\star$ & $f^\star/f_0$\\[2pt]
+baseline $(7,5)$ \texttt{full} & 386 & $1.150128\mathrm{e}{+}3$ & $1.824175\mathrm{e}{+}2$ & 0.158606\\
+A $(7,5)$ \texttt{neighbour} & 106 & $5.874909\mathrm{e}{+}2$ & $2.143026\mathrm{e}{+}2$ & 0.36478\\
+B $(13,9)$ \texttt{full} & 4216 & $3.233585\mathrm{e}{+}3$ & $1.713217\mathrm{e}{+}2$ & 0.05298\\
+\end{tabular}
+\normalsize
+\par\smallskip
+Run A has the \emph{best} $f_0$ (fewest bars $\Rightarrow$ thickest uniform
+bars $\Rightarrow$ stiffest start) and the \emph{worst} $f^\star$. B's
+impressive-looking $0.053$ is partly just a terrible starting point.
+
+\heading{6 --- The volume constraint}
+\[
+  \sum_e L_e a_e \le V_0
+  \qquad\Longrightarrow\qquad
+  \frac{a_{\max}-a_{\min}}{V_0}\,L^\top x \ \le\ 1 - \frac{a_{\min}\sum_e L_e}{V_0}
+\]
+\small
+\begin{tabular}{@{}ll p{4.2cm} p{2.7cm}@{}}
+$V_0$ & \texttt{V0} & material budget & $0.2$~m$^3$\\
+$A$ & \texttt{Aineq} & linear-inequality matrix --- \textbf{one row} & $1\times386$\\
+$b$ & \texttt{bineq} & budget left after the $a_{\min}$ floor & $0.99942644$\\
+$\lambda$ & \texttt{lambda.ineqlin} & multiplier on that row & $0.158755$\\
+\end{tabular}
+\normalsize
+\par\smallskip
+Left side = the volume you control; right side = budget minus the
+$5.74\times10^{-4}$ already committed to the floor. One \emph{linear} row, so
+fmincon handles it exactly. {\color{good}Free check:} for a fixed layout
+compliance $\propto 1/V$, so $\lambda$ should equal $f^\star/f_0$ --- $0.158755$
+vs $0.158606$, agreeing to $0.09\%$, the residual being the $a_{\min}$ floor.
+
+\heading{7 --- Sensitivity, and the chain rule}
+\[
+  \frac{\partial f}{\partial a_e} = -\,q_e^\top K_e^{\text{unit}} q_e \ \le\ 0
+  \qquad\src{slide~18}
+\]
+Minus twice a strain energy. Needs only $q$, which you already have:
+\textbf{no second solve}, because compliance is self-adjoint ($\lambda=-q$).
+Negative for \emph{every} bar $\Rightarrow$ thickening anything helps
+$\Rightarrow$ the budget must bind $\Rightarrow$ $\lambda>0$. Predicted before
+any run.
+\[
+  \frac{\partial \hat f}{\partial x_e}
+  = \underbrace{\frac{1}{f_0}}_{\text{step 2}}
+    \cdot \underbrace{\frac{\partial f}{\partial a_e}}_{\text{the physics}}
+    \cdot \underbrace{(a_{\max}-a_{\min})}_{\text{step 1},\ da_e/dx_e}
+\]
+which is the single code line
+\texttt{dfhatdx = ((amax-amin)/f0)*dfda;} --- the two factors are the two
+transformations, nothing more.
+
+\heading{8 --- {\color{warn}Two different $\lambda$'s. Do not mix them.}}
+\small
+\begin{tabular}{@{}p{7.1cm} p{7.1cm}@{}}
+{\bfseries adjoint multiplier} & {\bfseries shadow price}\\
+attached to the state equation $K q = f$ & attached to the budget $g\le0$\\
+exists at \emph{any} design & meaningful \emph{only} at the optimum\\
+here $=-q$ (self-adjoint), never printed & \texttt{lambda.ineqlin} $=0.158755$\\
+used to get $\partial f/\partial a_e$ & answers ``what is more steel worth?''\\
+Lecture 5 & Lecture 4 \src{slide 27}\\
+\end{tabular}
+\normalsize
+
+\heading{9 --- What the solver hands back}
+\small
+\begin{tabular}{@{}ll p{6.6cm} l@{}}
+\texttt{exitflag} & & \textbf{the only one that says WHY it stopped} & 1\\
+\texttt{output.iterations} & & close to \texttt{MaxIterations} $=$ out of patience & 1677\\
+\texttt{output.funcCount} & & FEA solves, $\approx$ one per iteration & 1681\\
+\texttt{output.firstorderopt} & & KKT residual reached, vs \texttt{OptimalityTolerance} $10^{-6}$ & $9.026\mathrm{e}{-7}$\\
+\texttt{lambda.ineqlin} & & see §6 & $0.158755$\\
+\end{tabular}
+\normalsize
+\par\smallskip
+{\color{good}Interior-point tells on itself:} volume$/V_0 = 0.999998$ not
+$1$, and the smallest area is $1.53\times10^{-7}$ not $10^{-7}$ --- zero bars
+sit exactly on a bound. The method stays strictly feasible and approaches
+boundaries from inside. Not an error; one sentence in the report shows you read
+the algorithm and not just the number.
+
+\heading{10 --- Reporting quantities (items 7 and 8)}
+\small
+\begin{tabular}{@{}l p{7.4cm} l@{}}
+bars kept & $a^\star_e \ge 1\%\max a^\star$ & 38 of 386\\
+volume held by those & the number that makes 38 mean something & 99.82\,\%\\
+$\max a^\star$ & largest bar & $8.774\mathrm{e}{-3}$~m$^2$\\
+1\,\% line & where the cut-off sits & $8.774\mathrm{e}{-5}$~m$^2$\\
+\texttt{aPlotRef} & $V_0/L_x$, a FIXED drawing scale so all panels match & $0.0333$~m$^2$\\
+\end{tabular}
+\normalsize
+\par\smallskip
+Under 10\,\% of the candidates hold 99.8\,\% of the material: {\bfseries a
+sizing problem, with every node fixed in advance, has chosen a topology}
+\src{slide 31}.
+
+\end{document}

@@ -1,0 +1,164 @@
+\documentclass[varwidth=14cm,border=10pt]{standalone}
+\usepackage{amsmath,xcolor,array}
+\usepackage{fontspec,unicode-math}
+\setmainfont{DejaVu Sans}[ItalicFont={DejaVu Sans},ItalicFeatures={FakeSlant=0.2},BoldItalicFont={DejaVu Sans Bold},BoldItalicFeatures={FakeSlant=0.2}]
+\setmathfont{texgyredejavu-math.otf}
+\setmathfont{DejaVu Sans}[range={up,bfup}]
+\setmathfont{DejaVu Sans}[range={it,bfit},FakeSlant=0.2]
+\setmathfont{texgyredejavu-math.otf}[range={"2202,"1D715,"03B5,"03F5,"2112,"2131}]
+\pagecolor[HTML]{1E1E2E}\color[HTML]{F4F4F4}
+\definecolor{accent}{HTML}{89B4FA}
+\definecolor{warn}{HTML}{F38BA8}
+\definecolor{good}{HTML}{A6E3A1}
+\newcommand{\heading}[1]{\par\medskip{\large\bfseries\color{accent}#1}\par\smallskip}
+\setlength{\parindent}{0pt}
+\raggedright
+\begin{document}
+
+{\Large\bfseries L04 — Constrained optimisation: KKT, multipliers, SQP}
+
+\heading{1. The problem, and one rule about writing it}
+\[
+  \min_{x\in\mathbb{R}^n} f(x)
+  \quad\text{s.t.}\quad
+  g_j(x)\le 0,\ \ j=1..m, \qquad h_k(x)=0,\ \ k=1..p
+\]
+$g_j$ is {\bfseries active} where $g_j=0$, {\bfseries inactive} where $g_j<0$.
+An equality is always active.
+
+{\color{warn}Always write $g\le0$, and non-dimensionalise.} For
+$\sigma\le\sigma_{\text{allow}}$ write
+\[
+  g=\frac{\sigma}{\sigma_{\text{allow}}}-1\le0,
+  \qquad\text{not}\qquad \sigma-\sigma_{\text{allow}}\le0 .
+\]
+Both are correct; only the first makes the multipliers {\itshape comparable}.
+The reference must be a {\bfseries constant}.
+
+\heading{2. Why a multiplier has to exist}
+Suppose $x^\star$ minimises $f$ on $g=0$ but $\nabla f$ is {\itshape not}
+parallel to $\nabla g$. Then $-\nabla f$ has a component {\itshape along} the
+constraint surface. Step that way: you stay feasible and $f$ falls --- so
+$x^\star$ was not optimal. Therefore at an optimum
+\[
+  \nabla f(x^\star)\parallel\nabla g(x^\star)
+  \qquad\Longrightarrow\qquad
+  \nabla f(x^\star)=-\lambda\,\nabla g(x^\star).
+\]
+{\bfseries The gradient does not vanish at a constrained optimum --- it is
+held.} The fence pushes back exactly as hard as the slope pulls.
+
+\heading{3. Equalities: the Lagrangian}
+\[
+  \mathcal{L}(x,\beta)=f(x)+\sum_{k=1}^{p}\beta_k h_k(x),
+  \qquad
+  \frac{\partial\mathcal{L}}{\partial x_i}=0,\quad
+  \frac{\partial\mathcal{L}}{\partial \beta_k}=0 .
+\]
+$n+p$ equations, $n+p$ unknowns. The $\beta$ derivative just returns $h_k=0$.
+
+\heading{4. Inequalities: the KKT conditions}
+With $\mathcal{L}=f+\sum_j\lambda_jg_j$, at a constrained minimum:
+\[
+  \begin{array}{@{}l@{\qquad}l@{}}
+    \nabla f(x^\star)+\sum_j \lambda_j\nabla g_j(x^\star)=0 & \text{stationarity}\\[2pt]
+    g_j(x^\star)\le0 & \text{feasibility}\\[2pt]
+    \lambda_j\ge0 & \text{sign}\\[2pt]
+    \lambda_j\,g_j(x^\star)=0 & \text{complementary slackness}
+  \end{array}
+\]
+Complementary slackness is the useful one: {\bfseries either the constraint is
+tight, or its price is zero.} Carry a second set $\sum_k\beta_k\nabla h_k$ for
+equalities --- which is why \texttt{fmincon} returns
+\texttt{lambda.ineqnonlin} and \texttt{lambda.eqnonlin} separately.
+
+\heading{5. What KKT is for}
+KKT is {\bfseries necessary}. If the problem is {\bfseries convex}, KKT is also
+{\bfseries sufficient} --- and then the minimum is {\bfseries global}.
+Necessary $\Rightarrow$ how we {\itshape search}. Sufficient $\Rightarrow$ how
+we {\itshape confirm}.
+
+\heading{6. The multiplier is a price}
+\[
+  \boxed{\ \frac{df^\star}{db}=-\lambda\ }
+\]
+Sweeping the bound in $g=x_1+2x_2-b\le0$:
+\[
+  \begin{array}{@{}r@{\qquad}r@{\qquad}r@{\qquad}l@{}}
+    b & f^\star & \lambda & \\
+    3.00 & 1.80000 & 1.20000 & \text{active --- and expensive}\\
+    4.75 & 0.31250 & 0.50000 & \text{active}\\
+    5.50 & 0.05000 & 0.20000 & \text{active --- nearly worthless}\\
+    6.00 & 0.00000 & 0.00000 & \text{inactive: the free optimum became feasible}
+  \end{array}
+\]
+{\color{good}A constraint you are not up against is worth nothing.}
+
+\heading{7. KKT turns constrained into unconstrained}
+Differentiate $\mathcal{L}=f+\lambda g$ in {\itshape all} arguments, treating
+$\lambda$ as a variable like any other:
+\[
+  \nabla\mathcal{L}=
+  \begin{bmatrix}\partial\mathcal{L}/\partial x_1\\ \partial\mathcal{L}/\partial x_2\\ \partial\mathcal{L}/\partial\lambda\end{bmatrix}
+  =\begin{bmatrix}2x_1-4+\lambda\\ 2x_2-4+2\lambda\\ x_1+2x_2-4\end{bmatrix}
+\]
+The first rows are stationarity; the last is $\partial\mathcal{L}/\partial\lambda=g$,
+i.e.\ the active constraint. So {\bfseries $\nabla\mathcal{L}=0$ {\itshape is} the
+KKT system}: $n+m$ equations in $n+m$ unknowns.
+
+\heading{8. Therefore Newton is unchanged}
+Put $\mathcal{L}$ where $f$ was and $(x,\lambda)$ where $x$ was:
+\[
+  \begin{bmatrix}x\\ \lambda\end{bmatrix}^{(k+1)}
+  =\begin{bmatrix}x\\ \lambda\end{bmatrix}^{(k)}-H_{\mathcal{L}}^{-1}\nabla\mathcal{L}
+\]
+Same formula as Lecture 3. {\itshape Linear} KKT system $\Rightarrow$
+$H_{\mathcal{L}}$ constant $\Rightarrow$ converges in {\bfseries one step}.
+{\color{warn}Do not generalise that.} The tin can's KKT system is nonlinear, so
+$H_{\mathcal{L}}$ is rebuilt each step --- $\|\nabla\mathcal{L}\|$ then runs
+$5.1\!\times\!10^{1}\to4.8\to1.1\to8.0\!\times\!10^{-2}\to1.4\!\times\!10^{-4}
+\to2.4\!\times\!10^{-10}$: roughly squaring, i.e.\ {\bfseries quadratic
+convergence}.
+
+\heading{9. What makes it SQP}
+Raw Newton always takes $\alpha=1$ and can diverge from a poor start. SQP keeps
+the same direction $d_k=-H_{\mathcal{L}}^{-1}\nabla\mathcal{L}$ but line-searches
+$\alpha_k$ on a {\bfseries merit function}
+\[
+  \Psi(x)=f(x)+\sum_j\lambda_j\max[0,g_j(x)]+\sum_k\lambda_{m+k}|h_k(x)| ,
+\]
+then minimises $\varphi(\alpha)=\Psi(x^{(k)}+\alpha d_k)$ --- Lecture 3's line
+search with $\Psi$ in place of $f$. {\bfseries KKT is a test; SQP is a method.}
+
+\heading{10. The engineering payoff (heat exchanger)}
+Every $g$ divided by a fixed reference of its own kind, so all six $\lambda$ are
+in one currency and can be {\bfseries ranked}:
+\[
+  \begin{array}{@{}lr@{}}
+    \text{sizing 3} & 10\,000.0 \ \leftarrow\\
+    \text{balance 2} & 5210.7\\
+    \text{balance 3} & 5110.0\\
+    \text{sizing 2} & 4789.3\\
+    \text{sizing 1} & 2825.3\\
+    \text{balance 1} & 1964.0
+  \end{array}
+\]
+All six active; stage 3's sizing leads at about twice anything else, so
+relaxing it 10\% saves roughly $1000\ \mathrm{m}^2$. {\bfseries The ranking is
+the answer} --- it tells the engineer which limit to argue about.
+
+\heading{11. Take away}
+\begin{enumerate}\itemsep0pt
+\item At a constrained optimum the gradient is {\itshape held}, not zero:
+      $\nabla f=-\sum\lambda_j\nabla g_j$.
+\item The multiplier is a price, $df^\star/db=-\lambda$; a slack constraint is
+      worth nothing.
+\item KKT is a test, SQP is a method --- and SQP is Lecture 3's Newton step on
+      $\mathcal{L}$ in $(x,\lambda)$. No new machinery.
+\item Multipliers in different units cannot be compared. Non-dimensionalise
+      everything.
+\item Report the {\bfseries design}, not only the objective --- and the useful
+      information came from the multipliers.
+\end{enumerate}
+
+\end{document}
