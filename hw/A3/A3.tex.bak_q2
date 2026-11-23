@@ -1,0 +1,325 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{mathpazo}          % Palatino text and maths -- easier to read than Computer Modern
+\usepackage{microtype}         % subtler line breaking, fewer ragged edges
+\usepackage{amsmath,amssymb}
+\usepackage{bm}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{parskip}
+\usepackage{graphicx}          % A3 asks for figures
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf}
+
+% --- headings -------------------------------------------------------------
+\definecolor{rule}{gray}{0.55}
+\titleformat{\section}{\large\bfseries}{}{0pt}{}[{\color{rule}\titlerule}]
+\titlespacing*{\section}{0pt}{1.6em}{0.8em}
+\titleformat{\subsection}{\bfseries}{}{0pt}{}
+\titlespacing*{\subsection}{0pt}{1.2em}{0.4em}
+
+\title{Engineering Optimisation --- Assignment 3}
+\author{Nitis Kanjananaravadee \and Pannavit Hurattanapirom \and Tara Asavathanabode}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section*{Question 1: Sensitivity analysis of a pipe network}
+
+\begin{sloppypar}
+A water distribution network of 8 nodes and 12 edges. Each pipe has conductance
+$x_e$ and length $L_e$. Flow starts from node 1 and leaves at node 8. The state
+equation, from conservation of flow at every node, is
+\end{sloppypar}
+\[
+  \bm{A}(\bm{x})\,\bm{p} = \bm{q},
+  \qquad
+  \bm{A}(\bm{x}) = \sum_{e=1}^{12} x_e \bm{A}_e,
+\]
+where $\bm{p}$ holds the pressure at every node and $\bm{q}$ the injection flow
+rate, $\bm{q} = \bm{e}_1$.
+\begin{sloppypar}
+Script: \texttt{A3/Matlab/pipe\_sensitivity\_demo\_moded.m}. One solve gives
+\end{sloppypar}
+\[
+  \bm{p} = (1.09135,\ 0.92901,\ 0.88615,\ 0.70694,\ 0.67990,\ 0.39857,\ 0.40182),
+  \qquad f = p_1 = 1.09135 .
+\]
+
+\subsection*{1.1 Setting A}
+
+Cutting the pumping cost:
+\[
+  \begin{aligned}
+    &\min_{\bm{x}\in\mathbb{R}^{12}} && f(\bm{x}) = p_1(\bm{x})
+      && \text{(the input pressure)}\\
+    &\text{subject to} && \textstyle\sum_{e=1}^{12} L_e x_e \le V
+      && \text{(budget on pipe volume)}\\
+    & && 0.5 \le x_e \le 5.0 &&\\
+    & && \bm{A}(\bm{x})\,\bm{p} = \bm{q} && \text{(the analysis)}
+  \end{aligned}
+\]
+
+\textbf{(1)} From the standard form of the optimisation problem, the design
+variables --- what we can change --- are the conductance of each pipe, so there
+are \textbf{12 design variables}. The pressure at node (junction) 1 is the
+only implicit response, so there is \textbf{1 response}. We chose the \textbf{adjoint method}, because the adjoint's
+computation cost is set by the number of responses, while direct differentiation
+depends on the number of design variables.
+
+\textbf{(2)} The Lagrangian, in which the bracket is zero for every $\bm{x}$:
+\[
+  \mathcal{L}(\bm{x},\bm{p},\bm{\lambda})
+  = \underbrace{\bm{c}^\top\bm{p}}_{f(\bm{x})}
+  + \bm{\lambda}^\top\underbrace{\left(\bm{A}(\bm{x})\bm{p}-\bm{q}\right)}_{=\,0}
+\]
+\[
+  \frac{d\mathcal{L}}{dx_e}
+  = \bm{c}^\top\frac{\partial\bm{p}}{\partial x_e}
+  + \bm{\lambda}^\top\!\left(\bm{A}_e\bm{p} + \bm{A}(\bm{x})\frac{\partial\bm{p}}{\partial x_e}\right)
+  = \left(\bm{c}^\top + \bm{\lambda}^\top\bm{A}(\bm{x})\right)\frac{\partial\bm{p}}{\partial x_e}
+  + \bm{\lambda}^\top\bm{A}_e\bm{p}
+\]
+Choosing $\bm{\lambda}$ so that the first bracket vanishes gives
+$\bm{A}^\top\bm{\lambda} = -\bm{c}$ and
+$df/dx_e = \bm{\lambda}^\top\bm{A}_e\bm{p}$. The twelve sensitivities:
+
+\begin{center}
+\begin{tabular}{crr}
+\toprule
+pipe & junctions & $df/dx_e$ \\
+\midrule
+1  & 1--2 & $-2.635273\times10^{-2}$ \\
+2  & 1--3 & $-4.210610\times10^{-2}$ \\
+3  & 2--3 & $-1.837190\times10^{-3}$ \\
+4  & 2--4 & $-4.931582\times10^{-2}$ \\
+5  & 3--5 & $-4.253686\times10^{-2}$ \\
+6  & 4--5 & $-7.309169\times10^{-4}$ \\
+7  & 4--6 & $-9.509277\times10^{-2}$ \\
+8  & 5--7 & $-7.732985\times10^{-2}$ \\
+9  & 6--7 & $-1.058357\times10^{-5}$ \\
+10 & 6--8 & $-1.588569\times10^{-1}$ \\
+11 & 7--8 & $-1.614608\times10^{-1}$ \\
+12 & 3--4 & $-3.211594\times10^{-2}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{(3) Solves: 1.} We solve for $\bm{p}$ from $\bm{A}\bm{p} = \bm{q}$.
+Normally it should be 2 solves, the other being $\bm{\lambda}$ from
+$\bm{A}^\top\bm{\lambda} = -\bm{c}$. However, in this case
+$\bm{\lambda} = -\bm{p}$: from $f = p_1 = \bm{e}_1^\top\bm{p}$ we have
+$\bm{c} = \bm{e}_1 = \bm{q}$, so $\bm{A}^\top\bm{\lambda} = -\bm{c} = -\bm{q}$.
+Comparing $\bm{A}^\top\bm{\lambda} = -\bm{q}$ with $\bm{A}\bm{p} = \bm{q}$, and
+since $\bm{A}$ is symmetric so that $\bm{A} = \bm{A}^\top$, we get
+$\bm{\lambda} = -\bm{p}$. Direct differentiation would have cost $1 + 12 = 13$.
+
+\textbf{(4)} The volume constraint is free, because $\sum_e L_e x_e$ has the
+constant vector $L_e$ as its gradient: no pressure appears in it, so no analysis
+is involved.
+
+\subsection*{1.2 Setting B}
+
+Change pipes 1 and 2, and keep the other pressures above a minimum:
+\[
+  \begin{aligned}
+    &\min_{x_1,x_2} && L_1x_1 + L_2x_2 && \text{(material used)}\\
+    &\text{subject to} && p_k(\bm{x}) \ge p_{\min},\quad k = 1,\dots,7
+      && (p_{\min} = 0.35)\\
+    & && 0.5 \le x_1,\,x_2 \le 5.0 &&\\
+    & && \bm{A}(\bm{x})\,\bm{p} = \bm{q} && \text{(the analysis)}
+  \end{aligned}
+\]
+
+\textbf{(1)} We have 2 design variables, $x_1$ and $x_2$, the conductances of
+pipes 1 and 2, and 7 implicit responses, one from each junction pressure. We
+should then use \textbf{direct differentiation} instead of the adjoint, because
+the number of responses is larger than the number of design variables.
+
+\textbf{(2)} The Jacobian:
+
+\begin{center}
+\begin{tabular}{crr}
+\toprule
+junction $k$ & $\partial p_k/\partial x_1$ & $\partial p_k/\partial x_2$ \\
+\midrule
+1 & $-2.635273\times10^{-2}$ & $-4.210610\times10^{-2}$ \\
+2 & $+1.335223\times10^{-2}$ & $-2.025325\times10^{-2}$ \\
+3 & $-9.064587\times10^{-3}$ & $+1.374956\times10^{-2}$ \\
+4 & $+2.950452\times10^{-3}$ & $-4.475376\times10^{-3}$ \\
+5 & $-3.468827\times10^{-3}$ & $+5.261669\times10^{-3}$ \\
+6 & $+1.012460\times10^{-3}$ & $-1.535744\times10^{-3}$ \\
+7 & $-1.288586\times10^{-3}$ & $+1.954583\times10^{-3}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{(3) Solves: 3.} We solve $\bm{A}\bm{p} = \bm{q}$ once, and then one solve
+per design variable --- each returns one full column of the Jacobian, so two
+solves fill all fourteen entries.
+
+\textbf{(4)} We do not need an analysis to compute the objective's gradient,
+because it is $(L_1, L_2)$, which are constants and are given.
+
+\subsection*{1.3 Reading the answer}
+
+\textbf{(1)} We will widen \textbf{pipe 11, junctions 7--8}, as it is the most
+sensitive of all the pipes at $-1.61\times10^{-1}$, which will reduce the
+pressure the most among all pipes. The sign shows how it will affect the pump
+head, and the magnitude shows by how much.
+
+\textbf{(2)} The sign of every $df/dx_e$ in Setting A is \textbf{negative}, and it
+must be. With $\bm{\lambda} = -\bm{p}$ the gradient is
+$df/dx_e = -\bm{p}^\top\bm{A}_e\bm{p}$, and $\bm{A}_e$ holds
+\[
+  \begin{bmatrix} \ \ 1 & -1\ \ \\ -1 & \ \ 1\ \ \end{bmatrix}
+  \quad\text{in rows and columns } i,j \ \text{(zero elsewhere)},
+  \qquad\text{so}\qquad
+  \bm{p}^\top\bm{A}_e\bm{p} = \left(p_i-p_j\right)^2 \ge 0 .
+\]
+Widening a pipe --- increasing $x_e$ --- makes the pressure lower, never higher.
+
+\section*{Question 2: Truss size optimisation --- the Michell cantilever}
+
+Scripts: \texttt{a3\_q2\_truss\_sizeOpt.m} (the Lecture 6 demo with the
+boundary-condition block replaced) and \texttt{a3\_q2\_parameter\_study.m} (the
+three runs of 2.2). The supports are specified physically and snapped to the
+nearest left-edge node, so the same code works on both grids:
+
+\begin{quote}\small\ttfamily
+leftNodes = find(abs(nodalCoordinates(:,2)) < 1e-12);\\
+supportHeight = [Ly/4; 3*Ly/4];\\
+{[}\textasciitilde, nearest{]} = min(abs(nodalCoordinates(leftNodes,3) - supportHeight(k)));
+\end{quote}
+
+At $h_y = 1$~m and $0.5$~m both snaps are exact. The load node is found the same
+way, at $(L_x, L_y/2) = (6,2)$.
+
+\subsection*{2.1 Getting it running}
+
+\begin{center}
+\begin{tabular}{rlp{8.3cm}}
+\toprule
+ & value & comment \\
+\midrule
+1. fixed DOFs        & 4 of 70 & two pinned points $\times$ two directions --- correct, since only two \emph{points} are pinned, not the edge. Three is the minimum needed to remove two translations and a rotation. \\
+2. exit flag         & 1 & first-order optimality and feasibility met to tolerance: \texttt{firstorderopt} $=9.0264\times10^{-7}$ against $10^{-6}$. \\
+3. iterations        & 1677 & of 5000 allowed, 1681 function evaluations --- not an iteration limit \\
+4. $f_0$             & $1.150128\times10^{3}$ J & uniform start \\
+\phantom{4.} $f^\star$ & $1.824175\times10^{2}$ J & \\
+\phantom{4.} $f^\star/f_0$ & 0.158606 & the same steel, rearranged, is $6.3\times$ stiffer \\
+5. volume, physical  & $1.999997\times10^{-1}$ m$^3$ & of $V = 0.2$ \\
+\phantom{5.} normalised & 0.999998 & tight to $-1.6\times10^{-6}$ \\
+6. \texttt{lambda.ineqlin} & $1.587548\times10^{-1}$ & $>0$, so the budget is active --- as it must be, since $\partial f/\partial A_e \le 0$ means nothing in the objective stops the optimiser thickening every bar \\
+7. bars above 1\%    & 38 of 386 & 348 removed; the line sits at $a = 8.774\times10^{-5}$ m$^2$ and the surviving 38 hold 99.8\% of the volume \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+A sizing problem with fixed nodes has chosen a \emph{topology}, by driving 90\% of
+the bars onto their lower bound. $A_{\min}$ is $10^{-7}$ rather than zero so that
+$\bm{K}$ cannot go singular.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.70\linewidth]{a3_q2_structure_7x5_full.png}
+\caption{Item 8: the optimised baseline --- a tapered lens, deep at the supports
+and narrowing to the load, with members fanning at both ends: a Michell
+cantilever.}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.70\linewidth]{a3_q2_convergence_7x5_full.png}
+\caption{Item 8: convergence. $f/f_0$ falls from 1 to 0.1586; the budget is pinned
+at 1 throughout. The staircase is the interior-point barrier parameter being cut
+--- a plateau is one subproblem converging, not convergence, which is why the exit
+flag is read before the curve.}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.70\linewidth]{a3_q2_histogram_7x5_full.png}
+\caption{Item 8: the area histogram, log axis, with the 1\% line. Bimodal --- a
+crowd at $A_{\min}$ and a few thick bars, little between. The optimiser discards
+bars rather than thinning them.}
+\end{figure}
+
+\subsection*{2.2 Parameter studies}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{a3_q2_three_designs.png}
+\caption{Item 1: the three optimised designs, same bar-width scale, axes fixed to
+the full $L_x \times L_y$ domain in every panel.}
+\end{figure}
+
+\textbf{(2) The comparison.}
+
+\begin{center}
+\small\setlength{\tabcolsep}{3.4pt}
+\begin{tabular}{llrrrrrr}
+\toprule
+run & setting & bars & $f_0$ [J] & $f^\star$ [J] & $f^\star/f_0$ & $>1\%$ & $\lambda$ \\
+\midrule
+baseline & $(7,5)$, full      & 386  & $1.150128\times10^{3}$ & $1.824175\times10^{2}$ & 0.15861 & 38 & $1.587548\times10^{-1}$ \\
+A        & $(7,5)$, neigh. & 106  & $5.874909\times10^{2}$ & $2.143026\times10^{2}$ & 0.36478 & 34 & $3.635786\times10^{-1}$ \\
+B        & $(13,9)$, full     & 4216 & $3.233585\times10^{3}$ & $1.713217\times10^{2}$ & 0.05298 & 90 & $5.426695\times10^{-2}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$f_0$ differs by run because the same budget is spread over different total bar
+lengths, so $f^\star/f_0$ and $\lambda$ are \emph{within-run} quantities. Only
+$f^\star$ compares across runs.
+
+\textbf{(3) Run A --- connectivity.} The \textbf{baseline} is lower,
+$1.8242\times10^{2}$ against $2.1430\times10^{2}$, by 14.9\%. It must be: every
+'neighbour' design is also a 'full' design with the long diagonals left at
+$A_{\min}$, so 'neighbour''s feasible set is a \emph{subset} of 'full''s, and a
+minimum over a subset cannot be lower. The gap is visible in the figure ---
+'neighbour' has only horizontal, vertical and $45^\circ$ members, so it
+approximates the diagonal load path in steps. \textbf{We pay} 386 bars against
+106 and 4.96~s against 0.80~s.
+
+\textbf{(4) Run B --- refinement.} \textbf{B} is lower, $1.7132\times10^{2}$
+against $1.8242\times10^{2}$, by 6.1\%. It must be, because the grids
+\emph{nest}: halving both spacings keeps every coarse node. A coarse bar is not
+itself a candidate in the fine structure --- the 'full' rule drops any bar with a
+third node on it --- but two collinear fine bars of length $L/2$ and area $A$ in
+series have stiffness $EA/L$ and volume $LA$, exactly the coarse bar. So the
+coarse feasible set embeds in the fine one and $f^\star$ must fall. (Refinement
+alone does not guarantee this: the lecture's $11\times5 \to 13\times5$ raises
+$f^\star$ from $2.220\times10^{2}$ to $2.302\times10^{2}$ because those grids do
+not nest.) \textbf{Cost:} 4216 bars against 386 ($10.9\times$) and 78.2~s against
+4.96~s ($15.8\times$), for 6.1\%. \textbf{Would we pay it?} For a final design
+yes --- 6\% is free stiffness bought once. Inside a loop, no. The trend decides:
+the baseline captured 14.9\% over A, B added a diminishing 6.1\% at sixteen times
+the cost, so the next halving is not worth running.
+
+\section*{Declaration of AI use}
+
+We used an AI while preparing this hand-in. What we used it for:
+
+\begin{sloppypar}
+\begin{enumerate}\itemsep0pt
+\item \textbf{English.} Correcting grammar and rephrasing passages so that they
+      read more clearly. What each rephrased sentence says is ours; the wording
+      was improved.
+\item \textbf{Typesetting the mathematics.} Writing the equations of this report
+      in \LaTeX{} --- turning mathematics we had already worked out by hand into
+      typeset form.
+\item \textbf{Fixing \LaTeX{}.} Diagnosing compilation errors and correcting
+      formatting problems: misaligned tables, figure placement and spacing.
+\item \textbf{Fixing code.} Fixing the indexing in the \texttt{for} loops of
+      the Question 1 script.
+\end{enumerate}
+\end{sloppypar}
+
+
+\end{document}

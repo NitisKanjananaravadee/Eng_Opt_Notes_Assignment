@@ -30,3 +30,17 @@
 # ---- OS --------------------------------------------------------------------
 .DS_Store
 Thumbs.db
+
+# ---- upstream course material ----------------------------------------------
+# Lecture folders L01-L08: slides, handwritten notes and the course's own demo
+# scripts, as received in the upstream zips. Kept on disk to study and run from,
+# but not tracked - they are not our work, and the PDFs are ~31 MB of binaries.
+# Our own derived scripts live in hw/ and are tracked there.
+L01_formulation/
+L02_linear_programming/
+L03_unconstrained/
+L04_constrained/
+L05_sensitivity/
+L06_truss_size_optimisation/
+L07_neural_networks/
+L08_stochastic_optimisation/

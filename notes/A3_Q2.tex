@@ -1,0 +1,201 @@
+\documentclass[varwidth=15cm,border=10pt]{standalone}
+\usepackage{amsmath,xcolor,array}
+\usepackage{fontspec,unicode-math}
+\setmainfont{DejaVu Sans}[ItalicFont={DejaVu Sans},ItalicFeatures={FakeSlant=0.2},BoldItalicFont={DejaVu Sans Bold},BoldItalicFeatures={FakeSlant=0.2}]
+\setmathfont{texgyredejavu-math.otf}
+\setmathfont{DejaVu Sans}[range={up,bfup}]
+\setmathfont{DejaVu Sans}[range={it,bfit},FakeSlant=0.2]
+\setmathfont{texgyredejavu-math.otf}[range={"2202,"1D715,"03B5,"03F5,"2112,"2131}]
+\pagecolor[HTML]{1E1E2E}\color[HTML]{F4F4F4}
+\definecolor{accent}{HTML}{89B4FA}
+\definecolor{warn}{HTML}{F38BA8}
+\definecolor{good}{HTML}{A6E3A1}
+\definecolor{ref}{HTML}{9399B2}
+\newcommand{\heading}[1]{\par\medskip{\large\bfseries\color{accent}#1}\par\smallskip}
+\newcommand{\src}[1]{{\color{ref}\small[#1]}}
+\newcommand{\dolabel}{{\bfseries DO}\ \ }
+\newcommand{\why}{{\bfseries\color{accent}WHY}\ \ }
+\newcommand{\chk}{{\bfseries\color{good}CHECK}\ \ }
+\newcommand{\rep}{{\bfseries\color{warn}WRITE}\ \ }
+\setlength{\parindent}{0pt}
+\raggedright
+\begin{document}
+
+{\Large\bfseries Solving A3 Question 2 yourself — the procedure}
+
+\heading{Before you start}
+L06 slide 24 lists five checks and then says: {\itshape ``This is the workflow
+Assignment 3 asks you to carry out.''} Question 2 \emph{is} that list. Slide 33
+adds the other half: {\itshape ``A different structure is a different boundary
+condition, not different code.''}
+
+{\bfseries The one idea.} You are not writing a truss program. You are changing
+one block of the lecture's program, then reading the answer with a fixed
+checklist. The marks are in the reading, not in the running.
+
+\heading{Step 1 — Run the lecture demo unchanged, first}
+\dolabel \texttt{l06\_demo\_truss\_sizeOpt.m}, as supplied, on its own
+$7\times3$ grid over $6\times2$~m.\par
+\why If your edited version misbehaves later you need to know whether you broke
+it or whether it was never working here. Thirty seconds now.
+
+\heading{Step 2 — Change the ONE block: the boundary conditions}
+\dolabel Replace the whole-left-edge support with two pinned points, and move the
+load:
+\[
+  \begin{aligned}
+    &\text{pinned, both directions, at } (0,\ L_y/4) \text{ and } (0,\ 3L_y/4)\\
+    &P = 10^{5}\,\text{N, downward, at } (L_x,\ L_y/2)
+  \end{aligned}
+\]
+Specify the heights \emph{physically} and snap each to the nearest left-edge
+node.\par
+\why The assignment says to, so that the same code keeps working when the grid
+changes in 2.2. At $h_y = 1$~m and $0.5$~m both snaps are exact.\par
+{\color{warn}Slides vs assignment --- do not copy the slide.} Slide 33 describes
+this task as supports at $L_y/3$ and $2L_y/3$ on a $6\times3$~m domain. The
+assignment PDF says $L_y/4$ and $3L_y/4$ on $6\times4$~m. {\bfseries The PDF is
+what you are marked against.}
+
+\heading{Step 3 — Enter the baseline data exactly}
+\small
+\begin{tabular}{@{}ll@{}}
+domain & $L_x = 6$~m, $L_y = 4$~m\\
+grid & $n_x = 7$, $n_y = 5$, \texttt{'full'} ($h_x = h_y = 1$~m)\\
+budget & $V = 0.2$~m$^3$\\
+material & $E = 2.1\times10^{11}$~Pa\\
+bounds & $A_{\min} = 10^{-7}$, $A_{\max} = 10^{-2}$~m$^2$\\
+\end{tabular}
+\normalsize
+\par\smallskip
+\why $A_{\min}$ is $10^{-7}$ and not $0$ so that a bar whose area vanishes still
+contributes something: if every bar at a node went to zero, $K$ would be
+singular.
+
+\heading{Step 4 — Solve the non-dimensionalised problem, never the physical one}
+\dolabel Three steps, in order \src{slides 12--14}: parameterise the area,
+non-dimensionalise the objective, normalise the budget.
+\[
+  A_e = A_{\min} + (A_{\max}-A_{\min})x_e,
+  \qquad
+  \hat f(x) = \frac{f(a(x))}{f_0},
+  \qquad
+  Ax\le b,\quad 0\le x_e\le 1 .
+\]
+\why Not cosmetic. Slide 15 reports the same problem solved both ways:
+non-dimensionalised exits with {\bfseries flag 1}, the original with areas
+directly exits with {\bfseries flag 2}, step size gone to zero. {\itshape ``It
+decides whether the run converges.''} Solve in $x$, report in $a$.
+
+\heading{Step 5 — Item 1: count the fixed DOFs before you solve}
+\dolabel \textbf{4 of 70}: two pinned points $\times$ two directions.\par
+\why The question asks what the number \emph{should} be, so justify it: only two
+\emph{points} are pinned, not an edge. Three is the minimum that removes two
+translations and one rotation, so four is just-stiff with one redundancy. The
+lecture's whole-edge support would give 10 at $n_y=5$ --- if you print 10, you
+did not change the block.
+
+\heading{Step 6 — Items 2 and 3: read three numbers, in this order}
+\dolabel \texttt{exitflag}, then \texttt{output.iterations}, then
+\texttt{output.firstorderopt} \src{slide 25}.\par
+\why {\itshape ``\texttt{exitflag} --- the only one that says why it stopped.
+Anything but 1 and the rest is premature.''} Iterations close to
+\texttt{MaxIterations} means it ran out of patience, not that it converged.
+\texttt{firstorderopt} is the KKT residual actually reached, to be quoted against
+\texttt{OptimalityTolerance}.\par
+\rep ``Flag 1: first-order optimality and feasibility met to tolerance'' --- and
+the two numbers that back it.
+
+\heading{Step 7 — Items 4 and 5: the objective and the material}
+\dolabel $f_0$, $f^\star$, $f^\star/f_0$; then the volume \emph{both} ways ---
+physical $\sum_e L_eA_e$ in m$^3$, and the normalised constraint value
+$\left(\sum_e L_eA_e\right)/V$.\par
+\chk The normalised one must sit at $1$ to several decimals. If it does not, the
+budget is not active and something is wrong --- see the next step.
+
+\heading{Step 8 — Item 6: the multiplier is a PREDICTION, not a surprise}
+\dolabel Report \texttt{lambda.ineqlin} and state that it is positive.\par
+\why Slide 18 derives it before any run:
+\[
+  \frac{\partial f}{\partial A_e} = -u_e^\top K_e^{\text{unit}}u_e \le 0 ,
+\]
+twice a strain energy with a minus sign. Thickening \emph{any} bar can only
+reduce compliance, and nothing in the objective stops the optimiser thickening
+everything --- so the budget must be active and $\lambda>0$. The slide spells out
+the consequence: {\itshape ``in Assignment 3 the volume should print as fully
+spent and $\lambda>0$ in every run --- if it does not, something is wrong with
+your constraint.''}\par
+{\color{good}Free extra check:} for a fixed layout, compliance is exactly
+proportional to $1/V$, so $\lambda_{\text{ineqlin}}$ should come out equal to
+$f^\star/f_0$. Agreement tests the constraint scaling, the objective
+normalisation and the multiplier at once.
+
+\heading{Step 9 — Item 7: how many bars survive}
+\dolabel Count bars above 1\% of the largest area, and say what fraction of the
+volume they hold.\par
+\why This is Check 3, ``where did the material go?'' \src{slide 26}. The point to
+make is slide 31's: {\bfseries a size optimisation problem, with the nodes fixed
+in advance, has chosen a topology} --- by driving most bars onto $A_{\min}$.
+
+\heading{Step 10 — Item 8: three figures, and how to read them}
+\dolabel The optimised structure, the convergence history, the area histogram.\par
+\why Structure is Check 4, {\itshape ``observe the optimised layout and name the
+load path''} \src{slide 27}. Expect a tapered lens --- a Michell cantilever
+\src{slide 28}.\par
+{\color{warn}The convergence trap:} the staircase of flat stretches and sudden
+drops is the interior-point barrier parameter $\mu$ being cut \src{slides
+22--23}. A plateau is one barrier subproblem converging --- {\bfseries it is not
+convergence}. That is why the exit flag is read before the curve.\par
+The histogram should be bimodal: a crowd at $A_{\min}$, a few thick bars, little
+between. The optimiser discards bars rather than thinning them.
+
+\heading{Step 11 — 2.2: run A and B through the SAME solver}
+\dolabel Baseline $(7,5)$ \texttt{'full'}; A $(7,5)$ \texttt{'neighbour'}; B
+$(13,9)$ \texttt{'full'}. Everything not named stays at baseline.\par
+\dolabel \textbf{Item 1:} the three structures side by side, {\bfseries same
+bar-width scale} and {\bfseries axes fixed to the full $L_x\times L_y$ domain in
+every panel}.\par
+\why The assignment gives the reason: otherwise a given thickness means a
+different area in each picture, and a design that does not reach the edge gets
+stretched to fill its own panel. Both halves are marked.
+
+\heading{Step 12 — Item 2: fill the table, then say what it does NOT mean}
+{\color{warn}The trap:} $f_0$ differs between runs by design --- the same budget
+spread over different total bar lengths. So $f^\star/f_0$ and $\lambda$ are
+\emph{within-run} quantities. {\bfseries Only $f^\star$ compares across runs.}
+
+\heading{Step 13 — Item 3: connectivity, and why it MUST be that one}
+\dolabel \texttt{'full'} beats \texttt{'neighbour'}.\par
+\why Set inclusion, not observation: every \texttt{'neighbour'} design is also a
+\texttt{'full'} design with the long diagonals left at $A_{\min}$, so
+\texttt{'neighbour'}'s feasible set is a \emph{subset}, and a minimum over a
+subset cannot be lower. Guaranteed before either run started.\par
+\rep ``What do you pay for it?'' is part of the question: bars and seconds.
+
+\heading{Step 14 — Item 4: refinement, and the trap the lecture sets}
+\dolabel B beats the baseline.\par
+\why Only because the grids \emph{nest}. Halving both spacings keeps every
+coarse node. A coarse bar is not itself a candidate in the fine structure --- the
+\texttt{'full'} rule drops any bar with a third node on it --- but two collinear
+fine bars of length $L/2$ and area $A$ in series have stiffness $EA/L$ and volume
+$LA$, exactly the coarse bar. So the coarse feasible set embeds in the fine one
+and $f^\star$ must fall.\par
+{\color{warn}Do not write ``refinement improves $f^\star$''.} The lecture's own
+table \src{slide 29} has $11\times5 \to 13\times5$ \texttt{'neighbour'} going
+$2.220\times10^{2} \to 2.302\times10^{2}$ --- {\bfseries worse}. Those grids do
+not nest. Copy the lecture's conclusion and you answer backwards.\par
+\rep Cost in bars and in run time, and whether you would pay it. The question
+asks all three.
+
+\heading{Appendix — the five checks, and what to cite}
+\src{slide 24} 1. Did it converge --- the exit flag. 2. Read the multiplier.
+3. How is the material distributed --- the histogram. 4. Observe the layout and
+name the load path. 5. Effect of ground structure and refinement.
+\par\smallskip
+\begin{tabular}{@{}p{5.0cm}p{9.2cm}@{}}
+Rao \textit{\S12.4}, p.~622 & with \S12.4.1--12.4.3 (pp.~623--625): truss sizing.\\[3pt]
+Rao \textit{\S15.4}, p.~705 & design sensitivities, from Lecture 5 --- reread ``as the tool that will be used''.\\[3pt]
+L06 slides 1--33 & formulation 11--15, sensitivity 16--18, reading the solver 19--23, the five checks 24--31.\\
+\end{tabular}
+
+\end{document}

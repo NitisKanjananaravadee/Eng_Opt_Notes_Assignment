@@ -1,0 +1,157 @@
+\documentclass[varwidth=15.5cm,border=10pt]{standalone}
+\usepackage{amsmath,xcolor,array}
+\usepackage{fontspec,unicode-math}
+\setmainfont{DejaVu Sans}[ItalicFont={DejaVu Sans},ItalicFeatures={FakeSlant=0.2},BoldItalicFont={DejaVu Sans Bold},BoldItalicFeatures={FakeSlant=0.2}]
+\setmathfont{texgyredejavu-math.otf}
+\setmathfont{DejaVu Sans}[range={up,bfup}]
+\setmathfont{DejaVu Sans}[range={it,bfit},FakeSlant=0.2]
+\setmathfont{texgyredejavu-math.otf}[range={"2202,"1D715,"03BB,"03A3,"2211,"03B4,"03B8,"2207}]
+\pagecolor[HTML]{1E1E2E}\color[HTML]{F4F4F4}
+\definecolor{accent}{HTML}{89B4FA}
+\definecolor{warn}{HTML}{F38BA8}
+\definecolor{good}{HTML}{A6E3A1}
+\definecolor{ref}{HTML}{9399B2}
+\newcommand{\heading}[1]{\par\medskip{\large\bfseries\color{accent}#1}\par\smallskip}
+\newcommand{\src}[1]{{\color{ref}\small[#1]}}
+\setlength{\parindent}{0pt}
+\setlength{\tabcolsep}{5pt}
+\raggedright
+\begin{document}
+
+{\Large\bfseries Backpropagation}\quad{\color{ref}L07, and why it is L05's adjoint}
+
+\heading{0. First, what it is NOT}
+{\color{warn}Backpropagation does not train a network.} It does not choose a direction,
+a step length, or when to stop. It computes \textbf{one thing}:
+\[
+  \nabla J(\theta)\quad\text{at the current }\theta .
+\]
+That is handed to an L03 optimiser, which does the actual descending
+(MATLAB's \texttt{train} defaults to \texttt{trainscg}, scaled conjugate gradient).
+\src{slide~12}
+\[
+\begin{array}{ccccc}
+ \textbf{backprop} & \longrightarrow & \nabla J & \longrightarrow & \textbf{optimiser (L03)}\\
+ \text{\color{ref}\small supplies the gradient} & & & & \text{\color{ref}\small owns the update rule}
+\end{array}
+\]
+
+\heading{1. The network (course example, 1--3--1)}
+\[
+  a_j = w_j x + b_j,\qquad h_j=\tanh a_j,\qquad
+  \hat y=\textstyle\sum_j v_j h_j + c,\qquad r=\hat y-y,\qquad J=r^2
+\]
+Ten parameters: $\theta=(w_1,w_2,w_3,\,b_1,b_2,b_3,\,v_1,v_2,v_3,\,c)$.
+
+\textbf{Forward pass} at $x=0.75$, $y=-1$:
+\[
+\begin{array}{l@{\qquad}l}
+ a = (+0.500,\ -0.250,\ -0.375) & h = (+0.462117,\ -0.244919,\ -0.358357)\\
+ \hat y = +0.389291 & r = +1.389291,\quad J = 1.930130
+\end{array}
+\]
+{\color{good}Store $h$.} The backward pass needs it, and storing it is the only reason
+backprop costs memory.
+
+\heading{2. The naive way, and why nobody does it}
+Ten parameters, so ten derivatives. Finite differences would re-run the forward pass
+once per parameter: {\color{warn}11 forward passes} for one gradient, and each is inexact
+(you must pick $h$). \src{L05, method 1}
+
+\heading{3. The actual idea: one shared signal, pushed backwards}
+Every parameter reaches $J$ through $\hat y$. So compute that shared piece \emph{once} and
+reuse it. Call the running backward signal $\delta$ --- "how much does $J$ change per unit
+change of this quantity":
+\[
+\begin{array}{r@{\ }l@{\qquad}l}
+ \delta_{\hat y} &= \dfrac{\partial J}{\partial \hat y} = 2r = +2.778583
+   & \text{\color{ref}one number, computed once}\\[9pt]
+ \delta_{h_j} &= \delta_{\hat y}\cdot v_j
+   & \text{\color{ref}back through the output weights}\\[6pt]
+ \delta_{a_j} &= \delta_{h_j}\cdot\big(1-h_j^2\big)
+   & \text{\color{ref}back through the tanh}
+\end{array}
+\]
+Then \textbf{every} derivative is one multiplication by whatever the parameter touches
+\emph{locally}:
+\[
+\begin{array}{l@{\qquad}l@{\qquad}l}
+ \dfrac{\partial J}{\partial v_j}=\delta_{\hat y}\,h_j &
+ \dfrac{\partial J}{\partial c}=\delta_{\hat y}\cdot 1 & \\[9pt]
+ \dfrac{\partial J}{\partial w_j}=\delta_{a_j}\,x &
+ \dfrac{\partial J}{\partial b_j}=\delta_{a_j}\cdot 1 &
+ \text{\color{ref}same route; only the last link differs}
+\end{array}
+\]
+\[
+  \text{i.e.}\quad
+  \frac{\partial J}{\partial w_j}
+  = \underbrace{2r}_{\partial J/\partial\hat y}
+    \underbrace{v_j}_{\partial\hat y/\partial h_j}
+    \underbrace{\big(1-h_j^2\big)}_{\partial h_j/\partial a_j}
+    \underbrace{x}_{\partial a_j/\partial w_j}
+\]
+
+\heading{4. The numbers for this point}
+\[
+\begin{array}{l@{\ \ }r@{\ \ }r@{\ \ }r}
+ 1-h_j^2 & 0.786448 & 0.940015 & 0.871580\\[3pt]
+ \partial J/\partial v_j = 2r\,h_j & +1.284031 & -0.680527 & -0.995726\\[3pt]
+ \partial J/\partial b_j = \delta_{a_j} & +1.092605 & -2.611909 & +1.937406\\[3pt]
+ \partial J/\partial w_j = \delta_{a_j}x & +0.819454 & -1.958932 & +1.453054\\[3pt]
+ \partial J/\partial c = 2r & \multicolumn{3}{l}{+2.778583}
+\end{array}
+\]
+Ten derivatives, {\color{good}one forward pass and one backward pass.} No extra network
+evaluations at all --- and they are \emph{exact}, not differences.
+
+\heading{5. Why \emph{backwards}, and not forwards}
+The chain rule does not care about order --- but the cost does.
+\[
+\begin{array}{l@{\qquad}l@{\qquad}l}
+ \textbf{forward mode} & \text{propagate }\partial(\cdot)/\partial\theta_k\text{ outwards}
+   & \text{one sweep per \textbf{parameter}}\\
+ \textbf{reverse mode} & \text{propagate }\partial J/\partial(\cdot)\text{ backwards}
+   & \text{one sweep per \textbf{output}}
+\end{array}
+\]
+A network has {\color{good}one} output ($J$, a scalar) and {\color{warn}millions} of
+parameters. So reverse wins, always, and by the ratio of those two numbers.
+\textbf{Backpropagation is reverse mode.}
+
+\heading{6. {\color{good}You have already met this}: it is L05's adjoint}
+\[
+\begin{array}{l@{\qquad}l}
+ \textbf{L05 --- pipe network} & \textbf{L07 --- neural network}\\[3pt]
+ \text{design }x_e\text{ (areas, thicknesses)} & \text{parameters }\theta\ (w,b,v,c)\\
+ \text{state }p\ \text{from } A(x)p=q & \text{activations }a,h\ \text{from the forward pass}\\
+ \text{response }f=c^{\!\top}p & \text{loss }J=r^2\\[5pt]
+ \text{1. forward solve } A p = q & \text{1. forward pass } \to \hat y,\ J\\
+ \text{2. adjoint solve } A^{\!\top}\lambda=-c & \text{2. backward pass } \to \delta\\
+ \text{3. assemble } df/dx_e=\lambda^{\!\top}A_e p & \text{3. assemble } \partial J/\partial\theta_k=\delta\cdot(\text{local})\\[5pt]
+ \text{\color{good}two solves, whatever }n\text{ is} & \text{\color{good}two sweeps, whatever }|\theta|\text{ is}
+\end{array}
+\]
+And the same rule picks it: \src{L05 slide~22}
+\[
+  \begin{array}{l}
+  \text{\emph{direct} costs one sweep per DESIGN VARIABLE;}\\
+  \text{\emph{adjoint} costs one sweep per RESPONSE.}
+  \end{array}
+\]
+One loss against ten million weights is the most lopsided version of that count anybody runs.
+$\delta$ \textbf{is} $\lambda$: both are "sensitivity of the response to an intermediate
+quantity", both are obtained by sweeping the chain in the opposite direction to the physics.
+
+\heading{7. Two details worth keeping}
+\textbf{tanh is chosen partly for this.} $\tanh'=1-\tanh^2$, so once the forward pass has
+stored $h_j$, the derivative costs one multiply --- no new transcendental.
+The same trick is why ReLU is popular: its slope is exactly 1 where it is on, so a gradient
+survives many layers. \src{slide~5}
+
+\textbf{Nothing is reused between data points.} $a_j$, $h_j$, $r$ all depend on $x_i$, so
+$N$ points cost $N$ forward and $N$ backward sweeps, and
+$\nabla J=\frac1N\sum_i\nabla J_i$. {\color{warn}That is where the cost of training is.}
+\src{slide~11}
+
+\end{document}
