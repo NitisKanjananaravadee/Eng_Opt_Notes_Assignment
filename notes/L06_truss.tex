@@ -1,0 +1,145 @@
+\documentclass[varwidth=14cm,border=10pt]{standalone}
+\usepackage{amsmath,xcolor,array}
+\usepackage{fontspec,unicode-math}
+\setmainfont{DejaVu Sans}[ItalicFont={DejaVu Sans},ItalicFeatures={FakeSlant=0.2},BoldItalicFont={DejaVu Sans Bold},BoldItalicFeatures={FakeSlant=0.2}]
+\setmathfont{texgyredejavu-math.otf}
+\setmathfont{DejaVu Sans}[range={up,bfup}]
+\setmathfont{DejaVu Sans}[range={it,bfit},FakeSlant=0.2]
+\setmathfont{texgyredejavu-math.otf}[range={"2202,"1D715,"03B5,"03F5,"2112,"2131}]% keep partial, epsilon, script caps
+\pagecolor[HTML]{1E1E2E}\color[HTML]{F4F4F4}
+\definecolor{accent}{HTML}{89B4FA}
+\definecolor{warn}{HTML}{F38BA8}
+\definecolor{good}{HTML}{A6E3A1}
+\newcommand{\heading}[1]{\par\medskip{\large\bfseries\color{accent}#1}\par\smallskip}
+\setlength{\parindent}{0pt}
+\raggedright
+\begin{document}
+
+{\Large\bfseries L06 — Truss size optimisation}
+
+{\itshape No new theory: L06 = the FEA $+$ L05's adjoint $+$ L04's fmincon, in one loop.}
+
+\heading{1. The physical problem}
+\[
+\begin{aligned}
+  \min_{A_1,\dots,A_{n_e}}\quad & f = \mathbf{f}^{\!\top}\mathbf{u}(a) && \text{compliance}\\
+  \text{s.t.}\quad & \textstyle\sum_e L_e A_e \le V && \text{volume budget}\\
+  & A_{\min}\le A_e \le A_{\max} && \text{side constraints}\\
+  & K(a)\,\mathbf{u} = \mathbf{f} && \text{the FEA}
+\end{aligned}
+\]
+Minimising compliance $=$ maximising stiffness. The optimiser chooses {\itshape areas} of a
+fixed candidate set; it never moves a node and never invents a bar.
+
+\heading{2. The element — why area is special}
+A bar is axial-only, stiffness $EA/L$ rotated into global axes. The area enters as a pure
+multiplier:
+\[
+  K_e = A_e\,K_e^{\text{unit}},\qquad
+  K_e^{\text{unit}} = \frac{E}{L_e}
+  \begin{pmatrix}
+    l^2 & lm & -l^2 & -lm\\
+    lm & m^2 & -lm & -m^2\\
+    -l^2 & -lm & l^2 & lm\\
+    -lm & -m^2 & lm & m^2
+  \end{pmatrix},
+  \qquad \frac{\partial K_e}{\partial A_e} = K_e^{\text{unit}}
+\]
+with $l=(x_j-x_i)/L_e$, $m=(y_j-y_i)/L_e$ and
+$\text{dofs}_e = [\,2i\!-\!1,\;2i,\;2j\!-\!1,\;2j\,]$.
+Assemble by superposition, delete the fixed rows/columns, solve
+$u_{\text{free}}=K_{\text{free}}\backslash f_{\text{free}}$ — {\bfseries one} system per
+objective call.
+
+\heading{3. Three facts before optimising}
+\begin{enumerate}
+\item The volume constraint costs no analysis — $\sum_e L_e A_e$ has no $u$ in it. One linear row.
+\item $V$ is a {\itshape total} volume, never per-bar. ``Every bar at $10^{-3}$'' quietly hands
+      a finer grid $25\times$ more steel and every comparison becomes meaningless.
+\item \textcolor{good}{The problem is convex} — compliance has a positive semidefinite Hessian
+      in $a$, the constraint is linear. Local $=$ global; the start point does not matter.
+\end{enumerate}
+
+\heading{4. Non-dimensionalisation — three steps}
+Physical units span $\sim\!13$ decades ($A\sim10^{-7}$, $f\sim10^{3}$, $\partial f/\partial A\sim10^{6}$).
+\[
+\textbf{(1)}\quad A_e = A_{\min} + (A_{\max}-A_{\min})\,x_e,\qquad x_e\in[0,1]
+\]
+so the side constraint becomes just $0\le x_e\le 1$. $A_{\min}>0$ (not $0$) keeps $K$
+non-singular while still meaning ``void''.
+\[
+\textbf{(2)}\quad \hat f(x) = \frac{f(a(x))}{f_0},\qquad f_0 = f\!\left(a(0)\right)
+\]
+so $\hat f$ starts at exactly $1$ and reads as a fraction of the start.
+\[
+\textbf{(3)}\quad
+\frac{\sum_e L_e A_e}{V}\le 1
+\;\Longrightarrow\;
+\underbrace{\frac{A_{\max}-A_{\min}}{V}L^{\!\top}}_{\textstyle A_{\text{ineq}}}x
+\;\le\;
+\underbrace{1-\frac{A_{\min}\sum_e L_e}{V}}_{\textstyle b_{\text{ineq}}}
+\]
+\textcolor{warn}{Not cosmetic:} non-dimensionalised $\Rightarrow$ exitflag 1; in raw areas
+$\Rightarrow$ exitflag 2 (step size collapsed). fmincon's tolerance is {\itshape relative}.
+
+\heading{5. The sensitivity — free, because compliance is self-adjoint}
+\[
+  K(a)u=\mathbf{f},\quad f=\mathbf{f}^{\!\top}u
+  \;\Longrightarrow\;
+  K^{\!\top}\lambda=-\mathbf{f}
+  \;\overset{K=K^{\top}}{\Longrightarrow}\;
+  \lambda=-u
+\]
+\[
+  \boxed{\;\frac{\partial f}{\partial A_e} = -\,u_e^{\!\top}K_e^{\text{unit}}u_e \;\le\; 0\;}
+\]
+($u_e$ = bar $e$'s own four DOFs; the quantity is twice a strain energy, hence $\ge0$.)
+Chain down to the solver's variable:
+\[
+  \frac{\partial\hat f}{\partial x_e}
+  = \underbrace{\frac{1}{f_0}}_{\text{step 2}}\cdot
+    \underbrace{\left(-u_e^{\!\top}K_e^{\text{unit}}u_e\right)}_{\text{adjoint}}\cdot
+    \underbrace{\left(A_{\max}-A_{\min}\right)}_{\text{step 1}}
+  = -\,\frac{A_{\max}-A_{\min}}{f_0}\,u_e^{\!\top}K_e^{\text{unit}}u_e
+\]
+The gradient for all $n_e$ bars costs {\bfseries no extra solve} — that is what makes $1296$
+variables routine.
+
+\heading{6. Consequence of the sign}
+Thickening any bar can only lower compliance, and nothing in the objective stops the optimiser
+thickening everything. Therefore
+\[
+  \text{the volume constraint is \textcolor{good}{active at every optimum}, and }\lambda_{\text{ineqlin}}>0 .
+\]
+If your run prints a slack budget or $\lambda=0$, the constraint is wired wrong.
+
+\heading{7. Interpreting — five checks}
+\begin{enumerate}
+\item exitflag (1 = KKT met; 2 = step died; 0 = out of iterations), then
+      \texttt{output.iterations}, then \texttt{output.firstorderopt}.
+\item $\lambda_{\text{ineqlin}}$ — active? what is material worth?
+\item Area histogram, log axis. Void rule: $A_e < 0.01\max_e A_e$.
+\item The layout — trace a load path. Top chord tension, bottom chord compression: that couple
+      carries the global bending moment, every bar still axial-only.
+\item Ground structure and refinement.
+\end{enumerate}
+
+\heading{8. Why 'full' must win, and when refinement must}
+{\bfseries Connectivity} — a set inclusion, not an observation: every 'neighbour' design is a
+'full' design with the long bars parked at $A_{\min}$, so
+\[
+  \mathcal{F}_{\text{neigh}}\subset\mathcal{F}_{\text{full}}
+  \quad\Longrightarrow\quad
+  f^{*}_{\text{full}} \le f^{*}_{\text{neigh}} .
+\]
+{\bfseries Refinement} — guaranteed only when the grids {\itshape nest}. $7\times5 \to 13\times9$
+halves both spacings, so every old node and bar survives: $f^*$ must fall. $11\times5$ vs
+$13\times5$ do not nest and $f^*$ can rise — different feasible sets, not a solver failure.
+
+\heading{9. What convexity does and does not promise}
+Promises: the returned {\itshape areas} are a global optimum.
+Does not promise: that the {\itshape layout} is the best layout — the answer can only be a
+subset of the bars you offered at nodes you fixed. That gap is where topology optimisation
+begins.
+
+\end{document}

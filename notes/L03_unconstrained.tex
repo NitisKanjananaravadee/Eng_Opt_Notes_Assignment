@@ -1,0 +1,181 @@
+\documentclass[varwidth=15.5cm,border=10pt]{standalone}
+\usepackage{amsmath,xcolor,array}
+\usepackage{fontspec,unicode-math}
+\setmainfont{DejaVu Sans}[ItalicFont={DejaVu Sans},ItalicFeatures={FakeSlant=0.2},BoldItalicFont={DejaVu Sans Bold},BoldItalicFeatures={FakeSlant=0.2}]
+\setmathfont{texgyredejavu-math.otf}
+\setmathfont{DejaVu Sans}[range={up,bfup}]
+\setmathfont{DejaVu Sans}[range={it,bfit},FakeSlant=0.2]
+\setmathfont{texgyredejavu-math.otf}[range={"2202,"1D715,"03BB,"03A3,"2211,"03BA,"03B1,"03C6,"2207,"03B5}]
+\pagecolor[HTML]{1E1E2E}\color[HTML]{F4F4F4}
+\definecolor{accent}{HTML}{89B4FA}
+\definecolor{warn}{HTML}{F38BA8}
+\definecolor{good}{HTML}{A6E3A1}
+\definecolor{ref}{HTML}{9399B2}
+\newcommand{\heading}[1]{\par\medskip{\large\bfseries\color{accent}#1}\par\smallskip}
+\newcommand{\src}[1]{{\color{ref}\small[#1]}}
+\setlength{\parindent}{0pt}
+\setlength{\tabcolsep}{5pt}
+\raggedright
+\begin{document}
+
+{\Large\bfseries L03 --- Unconstrained optimisation \ \ {\color{ref}\normalsize part 1 of 3: the loop}}
+
+\heading{0. Why a new method at all}
+L02's simplex worked because everything was linear: the optimum \emph{had} to be at
+a vertex, and there are finitely many vertices to walk between.
+Curve the objective and \textbf{both} properties die at once --- no corners to land on,
+and every point of $\mathbb{R}^n$ is a candidate.
+So we stop enumerating and start \textbf{descending}. \src{slide~2}
+
+\heading{1. Standard form}
+\[
+  \min_{x\in\mathbb{R}^n} f(x) \qquad\text{subject to: nothing.}
+\]
+Real problems that are genuinely like this: model fitting, and today's spring system.
+
+\heading{2. The only two derivatives in the lecture}
+\[
+\begin{array}{l@{\qquad}l}
+ \nabla f = \Big[\tfrac{\partial f}{\partial x_1}\cdots\tfrac{\partial f}{\partial x_n}\Big]^{\!\top}
+   & H = \Big[\tfrac{\partial^2 f}{\partial x_i\,\partial x_j}\Big]\ \ (n\times n)\\[6pt]
+ \text{$n\times1$, points steepest \emph{uphill}} & \text{symmetric}\\[3pt]
+ \text{so $-\nabla f$ points steepest downhill} & \\
+\end{array}
+\]
+\[
+\begin{array}{l@{\ \ }l@{\qquad}l}
+ \nabla f &\text{decides \textbf{which way}} & \text{1st-order \emph{necessary} condition}\\
+ H &\text{decides \textbf{how far}, and if the answer is unique} & \text{2nd-order \emph{sufficient} condition}
+\end{array}
+\]
+
+\heading{3. Convexity = one test on $H$}
+$H$ positive definite $\Rightarrow$ $f$ strictly convex $\Rightarrow$ \textbf{one} stationary point,
+and it is the global minimum.\\
+In MATLAB that whole sentence is: \texttt{all(eig(H) > 0)}. \src{slide~7}
+
+\heading{4. The condition number --- the shape of the bowl}
+\[
+  \kappa(H)=\frac{\lambda_{\max}}{\lambda_{\min}}\ \ge 1,
+  \qquad
+  \frac{\text{long axis}}{\text{short axis}}=\sqrt{\kappa}
+\]
+{\color{good}$\kappa=1$}: circular contours, the gradient points straight at the minimum.\\
+{\color{warn}$\kappa$ large}: a narrow canyon --- the gradient points mostly \emph{across} the
+valley, not along it. Remember $\kappa$: by the end of the lecture it predicts exactly how
+much trouble steepest descent is in. \src{slide~9}
+
+\heading{5. The worked example (Rao 6.8) --- get the answer BEFORE any method}
+\[
+  \min_{x_1,x_2}\ f = x_1 - x_2 + 2x_1^2 + 2x_1x_2 + x_2^2,
+  \qquad x^{(1)}=(0,0)
+\]
+\[
+  \frac{\partial f}{\partial x_1}=1+4x_1+2x_2,\qquad
+  \frac{\partial f}{\partial x_2}=-1+2x_1+2x_2,\qquad
+  H=\begin{bmatrix}4&2\\2&2\end{bmatrix}
+\]
+Every entry of $H$ is a \emph{number} --- no $x$ survives. Constant Hessian: the curvature
+is the same everywhere. That is what "quadratic" means.
+\[
+\begin{array}{l@{\qquad}l}
+ \texttt{eig([4 2;2 2])} \to 0.7639,\ 5.2361 & \text{both} > 0 \Rightarrow \text{strictly convex}\\
+ \texttt{cond([4 2;2 2])} \to 6.854 & \sqrt{6.854}=2.6\text{: a mildly elongated bowl}
+\end{array}
+\]
+Set $\nabla f = 0$ --- two \emph{linear} equations:
+\[
+  \left.\begin{array}{r}1+4x_1+2x_2=0\\ -1+2x_1+2x_2=0\end{array}\right\}
+  \ \Rightarrow\ x^\star=\big(-1,\ \tfrac32\big),\qquad f^\star=-\tfrac54=-1.25
+\]
+{\color{good}Now every method can be \emph{checked} instead of believed.}
+
+\heading{6. Then why iterate at all?}
+Because $\nabla f = 0$ was a \emph{linear} system only because $f$ was quadratic.
+For a general nonlinear $f$ it is a nonlinear system with no closed form --- and solving
+nonlinear systems is itself done by iteration. The quadratics in this lecture are chosen so
+you can benchmark the methods against a known answer. \src{slide~13}
+
+\heading{7. The loop --- every method in the course is this one line}
+\[
+  \boxed{\ x^{(k+1)} = x^{(k)} + \alpha_k\,d_k\ }
+\]
+\[
+\begin{array}{l@{\ \ }l}
+ \textbf{direction } d_k & \text{steepest descent takes the obvious one: } d_k=-\nabla f(x^{(k)})\\[3pt]
+ \textbf{step length } \alpha_k & \text{a 1-D optimisation problem of its own (next section)}\\[3pt]
+ \textbf{stopping} & \|\nabla f(x^{(k)})\|\le\varepsilon \ \ \text{--- L01's 1st-order condition, now a tolerance}
+\end{array}
+\]
+
+\heading{8. The step length is a line search}
+Freeze the direction and look along it only. $f$ collapses to a function of one variable:
+\[
+  \min_{\alpha\in\mathbb{R}}\ \varphi(\alpha) = f\big(x^{(k)}+\alpha d_k\big)
+\]
+Taylor-expand:
+\[
+  \varphi(\alpha) = \underbrace{f(x^{(k)})}_{\text{constant}}
+  + \alpha\underbrace{\nabla f(x^{(k)})^{\!\top} d_k}_{\text{slope along }d_k}
+  + \tfrac12\alpha^2\underbrace{d_k^{\!\top} H d_k}_{\text{curvature along }d_k} + O(\alpha^3)
+\]
+Differentiate in $\alpha$, set to zero:
+\[
+  \frac{d\varphi}{d\alpha}=\nabla f(x^{(k)})^{\!\top}d_k + \alpha\, d_k^{\!\top}Hd_k \overset{!}{=}0
+  \qquad\Longrightarrow\qquad
+  \boxed{\ \alpha_k^\star = -\frac{\nabla f(x^{(k)})^{\!\top}d_k}{d_k^{\!\top}Hd_k}\ }
+\]
+Is it a minimum? $\ d^2\varphi/d\alpha^2 = d_k^{\!\top}Hd_k > 0$ whenever $H$ is positive
+definite. {\color{good}That is L01's 2nd-order sufficient condition, in one variable, doing a job.}
+
+\heading{9. Why the path must zig-zag}
+At the exact step length $\varphi'(\alpha_k^\star)=0$. By the chain rule
+$\varphi'(\alpha)=\nabla f\big(x^{(k)}+\alpha d_k\big)^{\!\top}d_k$, so
+\[
+  \nabla f\big(x^{(k+1)}\big)^{\!\top} d_k = 0
+  \quad\text{and since } d_k=-\nabla f\big(x^{(k)}\big):\quad
+  \boxed{\ \nabla f\big(x^{(k+1)}\big)^{\!\top}\nabla f\big(x^{(k)}\big) = 0\ }
+\]
+{\color{warn}Consecutive gradients are exactly perpendicular.} Every step turns $90°$ from the
+last one, so the path staircases down the valley instead of running along it. This is not a bug
+in the implementation --- it is forced by doing the line search \emph{exactly}.
+The demo prints the first four dot products: $0,\ 4{\times}10^{-16},\ 0,\ 3{\times}10^{-17}$. \src{slide~17}
+
+\heading{10. Two iterations by hand}
+\textbf{Iteration 1}, at $x^{(1)}=(0,0)$:
+\[
+  \nabla f = \begin{bmatrix}1\\-1\end{bmatrix},\quad
+  d_1=-\nabla f=\begin{bmatrix}-1\\1\end{bmatrix}
+\]
+Do the line search the long way, so it stops being a formula:
+\[
+  \varphi(\alpha)=f(0-\alpha,\,0+\alpha)= -\alpha-\alpha+2\alpha^2-2\alpha^2+\alpha^2
+  = \alpha^2-2\alpha
+\]
+\[
+  \varphi'(\alpha)=2\alpha-2=0 \Rightarrow \alpha_1^\star=1,\qquad \varphi''=2>0\ ✓
+\]
+Check against the formula: $\nabla f^{\!\top}d_1=-2$, $d_1^{\!\top}Hd_1=4-4+2=2$,
+so $\alpha^\star=-(-2)/2=1$. The same.
+\[
+  x^{(2)}=\begin{bmatrix}0\\0\end{bmatrix}+1\cdot\begin{bmatrix}-1\\1\end{bmatrix}
+  =\begin{bmatrix}-1\\1\end{bmatrix},\qquad f=-1 \ \ (\text{down from }0)
+\]
+\textbf{Iteration 2}, at $x^{(2)}=(-1,1)$:
+\[
+  \nabla f=\begin{bmatrix}1-4+2\\-1-2+2\end{bmatrix}=\begin{bmatrix}-1\\-1\end{bmatrix},
+  \qquad d_2=\begin{bmatrix}1\\1\end{bmatrix}
+\]
+Perpendicularity check: $\nabla f(x^{(2)})^{\!\top}\nabla f(x^{(1)}) = (-1)(1)+(-1)(-1)=0$ ✓
+\[
+  \nabla f^{\!\top}d_2=-2,\quad d_2^{\!\top}Hd_2=4+4+2=10
+  \quad\Rightarrow\quad \alpha_2^\star=\tfrac{2}{10}=\tfrac15
+\]
+\[
+  x^{(3)}=(-0.8,\ 1.2),\qquad f=-\tfrac65=-1.2
+\]
+Two steps got $f$ from $0$ to $-1.2$; the exact answer is $-1.25$ at $(-1,1.5)$.
+{\color{warn}It takes 16 more steps to close that last gap} --- which is the whole argument
+for part 2.
+
+\end{document}

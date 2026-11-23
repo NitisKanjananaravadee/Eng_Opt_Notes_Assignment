@@ -33,7 +33,7 @@
   {\end{minipage}\end{center}}
 
 \title{Engineering Optimisation --- Assignment 1}
-\author{}
+\author{Nitis Kanjananaravadee \and Pannavit Hurattanapirom \and Tara Asavathanabode}
 \date{}
 
 \begin{document}
@@ -44,20 +44,27 @@
 \subsection*{1. Source}
 
 A warehouse robot drives from a pick station to a drop station across a floor
-full of pallet stacks, and on the way it must pass a barcode scanner at a fixed
-point $\bm{w}$ so the load is logged. Every metre costs time and battery, times
-thousands of trips a day. The operator wants the shortest path that passes the
-scanner and doesn't hit anything.
+full of pallet stacks. On the way it must pass a barcode scanner at a fixed
+point $\bm{w}$, so the load is logged. Every metre costs time and battery, and
+the robot makes thousands of trips a day, so the operator wants the shortest
+path that passes the scanner and hits nothing.
 
 \subsection*{2. The three parts}
 
-\textbf{Given data (fixed parameters).} Start $\bm{p}_0$ and goal
-$\bm{p}_{N+1}$; the number of waypoints $N$ (chosen beforehand, not a design
-variable); $M$ obstacles with centre $\bm{c}_j$ [m] and radius $r_j$ [m]; robot
-radius $\rho$ [m]; maximum segment length $\Delta_{\max}$ [m]; scanner position
-$\bm{w}$ [m] and the index $q$ of the waypoint that must sit on it; workspace
-limits $x_{\min}, x_{\max}, y_{\min}, y_{\max}$ [m]. Start and goal are assumed
-to lie clear of every obstacle.
+\textbf{Given data.} Start $\bm{p}_0$ and goal $\bm{p}_{N+1}$; the number of
+waypoints $N$; $M$ obstacles with centre $\bm{c}_j$ [m] and radius $r_j$ [m];
+robot radius $\rho$ [m]; longest allowed segment $\Delta_{\max}$ [m]; scanner
+position $\bm{w}$ [m] and the index $q$ of the waypoint that sits on it;
+workspace limits $x_{\min}, x_{\max}, y_{\min}, y_{\max}$ [m]. Fixing $N$ is a
+modelling choice: it keeps the design vector the same length, which is what a
+continuous solver needs.
+
+\textbf{Two assumptions.} First, $\bm{p}_0$, $\bm{p}_{N+1}$ and $\bm{w}$ each
+lie at least $R_j'$ from every obstacle centre --- clear by the inflated radius
+defined below, not just clear of the obstacle. Otherwise the first and last
+segments are unprotected and the scanner gate cannot be met. Second, $N$ is big
+enough that $(N+1)\Delta_{\max}$ is longer than some feasible route, or the
+segment cap alone makes the problem infeasible.
 
 \subsubsection*{(a) Design variables}
 
@@ -65,12 +72,11 @@ to lie clear of every obstacle.
   \bm{p}_i = (x_i, y_i) \ [\mathrm{m}], \qquad i = 1,\dots,N
 \]
 
-The floor positions of the $N$ waypoints of a polyline path, giving $2N$
-design variables in total.
+The floor positions of the $N$ waypoints of a polyline path, so $2N$ variables.
 
 \subsubsection*{(b) Objective (minimise)}
 
-The total path length [m], to be \emph{minimised}:
+The total path length [m]:
 \[
   f(\bm{p}) = \sum_{i=0}^{N} \lVert \bm{p}_{i+1} - \bm{p}_i \rVert_2
 \]
@@ -78,30 +84,37 @@ The total path length [m], to be \emph{minimised}:
 \subsubsection*{(c) Constraints}
 
 \begin{center}
-\begin{tabular}{lll}
+\begin{tabular}{llp{6.2cm}}
 \toprule
 Constraint & Type & Why \\
 \midrule
-Obstacle clearance     & Behaviour & couples $x_i$ and $y_i$ through a norm \\
+Obstacle clearance     & Behaviour & a limit on where the robot may be, and it couples $x_i$ and $y_i$ \\
 Segment length $\le \Delta_{\max}$ & Behaviour & couples two neighbouring waypoints \\
 Workspace bounds       & Side      & each limits one variable on its own \\
-Scanner gate $\bm{p}_q = \bm{w}$ & Side ($\mathrm{lb}=\mathrm{ub}$) & fixes $x_q$ and $y_q$ one variable at a time \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-The clearance and segment-length constraints work together. Clearance is only
-checked at the waypoints, so on its own a segment between two clear waypoints
-could still cut through an obstacle. Capping every segment at $\Delta_{\max}$
-and inflating the checked radius accordingly closes that gap: if both ends of a
-segment of length at most $\Delta_{\max}$ lie at least $R'$ from a centre, every
-point of the segment lies at least $\sqrt{R'^2 - \Delta_{\max}^2/4}$ from it.
-Choosing
+Clearance is the hard one to classify. By L01 a \emph{side} constraint limits
+the variables themselves, and staying outside a disc is geometric in that sense.
+But a side constraint must also work as a plain bound on one variable, and this
+one cannot: it ties $x_i$ and $y_i$ together through a norm. So it is treated as
+a behaviour constraint.
+
+The scanner gate is not in the table because $\bm{p}_q$ is not a design
+variable. It is fixed at $\bm{w}$, so it is a preassigned parameter and the
+design vector holds the other $N-1$ waypoints. The standard form below writes it instead as the two equalities of eq.~(5).
+
+The segment cap is my own modelling device, not something the operator asked
+for. Clearance is only checked at the waypoints, so a segment between two clear
+waypoints could still cut through an obstacle. Capping the segment and
+inflating the checked radius closes that gap: if both ends of a segment of
+length at most $\Delta_{\max}$ lie at least $R'$ from a centre, every point on
+it lies at least $\sqrt{R'^2 - \Delta_{\max}^2/4}$ away. So taking
 \[
   R_j' = \sqrt{(r_j + \rho)^2 + \Delta_{\max}^2/4}
 \]
-therefore guarantees that the whole path, not just its waypoints, keeps the
-robot off obstacle $j$.
+keeps the whole path clear of obstacle $j$, not just its waypoints.
 
 \subsection*{3. Standard form}
 
@@ -117,31 +130,36 @@ robot off obstacle $j$.
   & h_1 = x_q - w_x = 0, \qquad h_2 = y_q - w_y = 0
 \end{align}
 
-Both inequality families are normalised so that each $g$ is dimensionless and
-of order one. In total there are $m = NM + (N+1)$ inequality constraints, $4N$
-bounds and $p = 2$ equality constraints.
+Both $g$ families are divided by their limit, so each is dimensionless and of
+order one. That gives $m = NM + (N+1)$ inequalities, $4N$ bounds and $p = 2$
+equalities.
 
 \subsection*{4. Classification}
 
-\textbf{(a) Nonlinear.} The Euclidean norm appears in the objective and in the
-clearance and segment-length constraints.
+\textbf{(a) Nonlinear.} The norm appears in the objective and in both $g$
+families.
 
-\textbf{(b) Not convex.} The objective is convex (a sum of norms of affine
-functions of $\bm{p}$), the segment-length constraints are convex, and the
-bounds and gate are linear. Only obstacle clearance breaks convexity: it asks
-each waypoint to stay outside a disc, and a disc exterior isn't convex. Take a
-feasible point above the obstacle and one below, and the straight line between
-them cuts through. Each way of passing the obstacles (left or right of each one)
-gives its own local minimum, so only local optimality can be claimed. In
-practice, run the solver from several starting guesses and keep the best.
+\textbf{(b) Not convex.} The L01 test has two halves. The objective passes: it
+is a sum of norms of affine functions, and a norm is convex. The segment
+constraints pass for the same reason, and the bounds and the gate are linear.
+The clearance constraints fail: $g_{ij} = 1 - \lVert \bm{p}_i - \bm{c}_j
+\rVert_2 / R_j'$ is a constant minus a norm, so it is \emph{concave}, and
+``every $g_j$ convex'' does not hold. The geometry says the same: the outside of
+a disc is not a convex set --- join a feasible point above the obstacle to one
+below and the line cuts through.
+
+So a local minimum cannot be called global. Each way round the obstacles (left
+or right of each one) has its own local minimum, and the solver finds the one
+its starting guess leads to. So: run it from several starts, keep the best, and
+call it the best design found.
 
 \newpage
 \section*{Question 2: A linear programme by hand}
 
 \subsection*{1. Formulation}
 
-A machine runs 8 h a day for 30 days, so it gives 240 h a month. The hours
-available in a group are its number of machines times 240.
+A machine runs 8 h a day for 30 days, so it gives 240 h a month. A group's hours
+are its number of machines times 240.
 
 \begin{center}
 \begin{tabular}{lccccc}
@@ -159,16 +177,14 @@ hours per unit of B & 0.9  & 0.1 & 0.2 & 0.3  & 0.3  \\
 A column is one machine group. A row is one part's recipe.
 
 \textbf{Design variables.} $x_A$ and $x_B$: the parts of type A and type B made
-each month [units/month]. Both are continuous. A fractional answer would be
+each month [units/month]. Both are continuous, so a fractional answer would be
 rounded at the end.
 
-\textbf{Objective.} We want $x_A + x_B$ to be as large as possible. This course
-always minimises, so we minimise the negative of it: $f = -(x_A + x_B)$. Both
-have the same optimum.
+\textbf{Objective.} We want $x_A + x_B$ as large as possible. This course always
+minimises, so we minimise $f = -(x_A + x_B)$. The optimum is the same.
 
 \textbf{Constraints.} A group cannot use more hours than it has. Hours used are
-(h per unit)$\times$(units per month), which gives h per month, and the limit is
-also in h per month.
+(h per unit)$\times$(units per month), which is h per month, and so is the limit.
 
 \begin{align*}
   \min_{x_A,\,x_B} \quad & f = -x_A - x_B && \text{$-$output, units/month} \\
@@ -181,9 +197,9 @@ also in h per month.
   & x_A,\ x_B \ge 0
 \end{align*}
 
-The five machine limits are \emph{behaviour} constraints. They limit how the
-shop performs, and each one uses both variables. The two sign conditions are
-\emph{side} constraints: each limits a single variable, so they are bounds.
+The five machine limits are \emph{behaviour} constraints: each one uses both
+variables. The two sign conditions are \emph{side} constraints: each limits one
+variable, so they are bounds.
 
 \subsection*{2. Standard form with slack variables}
 
@@ -198,11 +214,10 @@ One slack per constraint turns every $\le$ into an $=$:
   & x_A,\ x_B,\ s_L,\ s_S,\ s_D,\ s_M,\ s_G \ge 0
 \end{align*}
 
-\textbf{What each slack measures.} A slack is the time that group stands idle
-each month [h/month]: $s_L$ unused lathe hours, $s_S$ shaper, $s_D$ drilling,
-$s_M$ milling, $s_G$ grinding. If a slack is zero, the group is fully booked and
-its constraint is active. If it is positive, the group has that many hours to
-spare.
+\textbf{What each slack measures.} A slack is the hours that group stands idle
+each month: $s_L$ unused lathe hours, $s_S$ shaper, $s_D$ drilling, $s_M$
+milling, $s_G$ grinding. A zero slack means the group is fully booked and its
+constraint is active. A positive slack is spare time.
 
 \subsection*{3. Simplex tableau [Bonus]}
 
@@ -225,12 +240,12 @@ $-f$  & $-1$ & $-1$ & 0 & 0 & 0 & 0 & 0 & 0 \\
 \end{tableau}
 
 The basis is $\{s_L, s_S, s_D, s_M, s_G\}$, so $x_A = x_B = 0$ and every slack
-holds its full right-hand side. We make nothing and every machine stands idle.
-That is a real vertex, and a bad plan.
+holds its full right-hand side: we make nothing and every machine is idle. A
+real vertex, and a bad plan.
 
-\textbf{Iteration 1.} The most negative entry in the $-f$ row is $-1$, and
-$x_A$ and $x_B$ tie, because each part adds one unit of output. Either may
-enter. We choose $x_A$. The ratio test on the $x_A$ column:
+\textbf{Iteration 1.} The most negative entry in the $-f$ row is $-1$, and $x_A$
+and $x_B$ tie, because each part adds one unit of output. Either may enter. We
+choose $x_A$. The ratio test on the $x_A$ column:
 
 \begin{center}
 \begin{tabular}{lll}
@@ -280,9 +295,9 @@ $-f$  & 0 & $-0.75$ & 0 & 2.5 & 0 & 0 & 0 & 1800 \\
 \end{tabular}
 \end{tableau}
 
-We are now at the vertex $(x_A, x_B) = (1800, 0)$: make only part A, 1800 a
-month. $s_S = 0$, so the shaper constraint is now active. The $-f$ row still has
-a negative entry, $-0.75$ under $x_B$, so making some part B would raise output.
+We are at the vertex $(x_A, x_B) = (1800, 0)$: only part A, 1800 a month.
+$s_S = 0$, so the shaper is now active. The $-f$ row still has a negative entry,
+$-0.75$ under $x_B$, so making some part B would raise output.
 
 \textbf{Iteration 2.} $x_B$ enters. The ratio test on the $x_B$ column:
 
@@ -335,50 +350,49 @@ $-f$  & 0 & 0 & 1 & 1 & 0 & 0 & 0 & 3120 \\
 \end{tableau}
 
 No entry in the $-f$ row is negative, so no neighbouring vertex is better. An LP
-is convex, so no vertex anywhere is better either. The optimum is
+is convex, so no vertex anywhere is better. The optimum is
 \[
   x_A^\star = 1360, \qquad x_B^\star = 1760 \ \text{units/month}, \qquad
   f^\star = -3120,
 \]
-a total of 3120 parts a month. The answer is whole numbers, so no rounding is
-needed. Putting it back into the original constraints: the lathe uses
-$0.6(1360) + 0.9(1760) = 2400$ h and the shaper $0.4(1360) + 0.1(1760) = 720$ h.
-Both are exactly at their limit.
+a total of 3120 parts a month. Whole numbers, so no rounding is needed. Check:
+the lathe uses $0.6(1360) + 0.9(1760) = 2400$ h and the shaper
+$0.4(1360) + 0.1(1760) = 720$ h, both exactly at their limit.
 
-% \subsection*{4. Shadow prices [Bonus]}
+\subsection*{4. Shadow prices [Bonus]}
 
-% The shadow prices are the slack columns of the final $-f$ row:
+The shadow prices are the slack columns of the final $-f$ row:
 
-% \begin{center}
-% \begin{tabular}{lcccl}
-% \toprule
-% Constraint & $\lambda$ [units/h] & Status & Slack [h] & What it means \\
-% \midrule
-% lathe    & 1 & active   & 0   & bottleneck \\
-% shaper   & 1 & active   & 0   & bottleneck \\
-% drilling & 0 & inactive & 472 & 472 of 960 h idle \\
-% milling  & 0 & inactive & 232 & 232 of 1440 h idle \\
-% grinding & 0 & inactive & 400 & 400 of 1200 h idle \\
-% \bottomrule
-% \end{tabular}
-% \end{center}
+\begin{center}
+\begin{tabular}{lcccl}
+\toprule
+Constraint & $\lambda$ [units/h] & Status & Slack [h] & What it means \\
+\midrule
+lathe    & 1 & active   & 0   & bottleneck \\
+shaper   & 1 & active   & 0   & bottleneck \\
+drilling & 0 & inactive & 472 & 472 of 960 h idle \\
+milling  & 0 & inactive & 232 & 232 of 1440 h idle \\
+grinding & 0 & inactive & 400 & 400 of 1200 h idle \\
+\bottomrule
+\end{tabular}
+\end{center}
 
-% \textbf{The bottlenecks} are the lathe and the shaper. Both slacks are zero, so
-% all 2400 lathe hours and all 720 shaper hours are used. One more hour on either
-% gives one more part a month.
+\textbf{The bottlenecks} are the lathe and the shaper. Both slacks are zero, so
+all 2400 lathe hours and all 720 shaper hours are used. One more hour on either
+gives one more part a month.
 
-% \textbf{Which machine to buy.} A machine adds 240 h a month, so a lathe or a
-% shaper would each add $1 \times 240 = 240$ parts a month. That holds for the
-% whole machine, not only the first hour: with 240 extra hours in either group,
-% every basic variable in the final tableau stays positive, so the basis and the
-% prices do not change. The tightest case is milling, which falls to 16 h idle
-% when a shaper is added. The two are worth the same, so the choice comes down to
-% price. I would not buy a drill, a mill or a grinder.
+\textbf{Which machine to buy.} A machine adds 240 h a month, so a lathe or a
+shaper adds 240 parts a month. That holds for the whole machine, not just the
+first hour: with 240 extra hours in either group every basic variable stays
+positive, so the basis and the prices do not change. The tightest case is
+milling, which drops to 16 h idle when a shaper is added. The two are worth the
+same, so the choice comes down to price. A drill, a mill or a grinder is not
+worth buying.
 
-% \textbf{Why three prices are zero.} Drilling, milling and grinding already stand
-% idle for 472, 232 and 400 hours a month. A 473rd idle drilling hour is worth
-% nothing, because drilling time is not what holds the plan back. An inactive
-% constraint prices at zero, and that zero says where not to spend money.
+\textbf{Why three prices are zero.} Drilling, milling and grinding already stand
+idle for 472, 232 and 400 hours a month. A 473rd idle drilling hour is worth
+nothing, because drilling is not what holds the plan back. An inactive
+constraint prices at zero, and that zero says where not to spend money.
 
 \newpage
 \section*{Question 3: A larger problem, solved in MATLAB}
@@ -407,18 +421,21 @@ For \texttt{linprog} the demand rows are multiplied by $-1$ to make them $\le$.
 
 \subsection*{2. Solution}
 
-The MATLAB file is \texttt{A1\_q3.m}. It builds $c$, $A$ and $b$ from the price
-table instead of typing out the coefficients. The buying plan [t]:
+The MATLAB file is \texttt{A1\_skeleton.m}, the course skeleton with its four
+gaps filled: the cost vector \texttt{c = price(:)}, the 1s down column $v$ that
+build the demand rows, the lower bounds, and the \texttt{linprog} call. It
+builds $c$, $A$ and $b$ from the price table instead of typing out the
+coefficients. The buying plan [t]:
 
 \begin{center}
 \begin{tabular}{lrrrrrr}
 \toprule
  & Potato & Tomato & Okra & Eggplant & Spinach & Total \\
 \midrule
-Farm 1 & 40  & 0  & 0  & 0  & 0  & 40 \\
-Farm 2 & 0   & 0  & 20 & 0  & 20 & 40 \\
-Farm 3 & 0   & 0  & 0  & 80 & 20 & 100 \\
-Farm 4 & 60  & 60 & 0  & 0  & 0  & 120 \\
+Farm 1 & 0   & 0  & 0  & 20 & 0  & 20 \\
+Farm 2 & 0   & 40 & 20 & 0  & 0  & 60 \\
+Farm 3 & 0   & 0  & 0  & 60 & 40 & 100 \\
+Farm 4 & 100 & 20 & 0  & 0  & 0  & 120 \\
 \midrule
 Total  & 100 & 60 & 20 & 80 & 40 & \\
 \bottomrule
@@ -431,13 +448,18 @@ required amount, since buying more only costs money.
 \subsection*{3. Which farms are at capacity}
 
 Farm 3 (100 t of 100) and farm 4 (120 t of 120) are at capacity. Farms 1 and 2
-are not: they deliver 40 t each, out of 180 t and 200 t.
+are not: 20 t of 180 t and 60 t of 200 t.
 
-Potato and spinach are each bought from two farms. Potato is cheapest at farm 4
-(\$150/t), but farm 4 is full after 60 t of potato and 60 t of tomato, so the
-remaining 40 t comes from the next cheapest farm, farm 1 (\$200/t). Spinach is
-cheapest at farm 3 (\$1000/t), but farm 3 is full after 80 t of eggplant and
-20 t of spinach, so the other 20 t comes from farm 2 (\$1100/t). So a vegetable
-is split only when the cheap farm runs out of capacity.
+Tomato and eggplant are each bought from two farms. Tomato is cheapest at farm 4
+(\$500/t), but farm 4 is full after 100 t of potato and 20 t of tomato, so the
+last 40 t comes from the next cheapest farm, farm 2 (\$550/t). Eggplant is
+cheapest at farm 3 (\$700/t), but farm 3 is full after 60 t of eggplant and
+40 t of spinach, so the other 20 t comes from farm 1 (\$800/t). A vegetable is
+split only when the cheap farm runs out of capacity.
+
+The optimum is not unique: several plans cost exactly \$173\,000 and
+\texttt{linprog} returns one of them. The cost does not change, and nor do the
+full farms --- over every optimal plan farm 3 delivers exactly 100 t and farm 4
+exactly 120 t, while farm 1 ranges from 0 to 60 t and farm 2 from 20 to 80 t.
 
 \end{document}

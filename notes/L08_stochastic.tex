@@ -1,0 +1,133 @@
+\documentclass[varwidth=14cm,border=10pt]{standalone}
+\usepackage{amsmath,xcolor,array}
+\usepackage{fontspec,unicode-math}
+\setmainfont{DejaVu Sans}[ItalicFont={DejaVu Sans},ItalicFeatures={FakeSlant=0.2},BoldItalicFont={DejaVu Sans Bold},BoldItalicFeatures={FakeSlant=0.2}]
+\setmathfont{texgyredejavu-math.otf}
+\setmathfont{DejaVu Sans}[range={up,bfup}]
+\setmathfont{DejaVu Sans}[range={it,bfit},FakeSlant=0.2]
+\setmathfont{texgyredejavu-math.otf}[range={"2202,"1D715,"03B5,"03F5,"2112,"2131}]% keep partial, epsilon, script caps
+\pagecolor[HTML]{1E1E2E}\color[HTML]{F4F4F4}
+\definecolor{accent}{HTML}{89B4FA}
+\definecolor{warn}{HTML}{F38BA8}
+\definecolor{good}{HTML}{A6E3A1}
+\newcommand{\heading}[1]{\par\medskip{\large\bfseries\color{accent}#1}\par\smallskip}
+\setlength{\parindent}{0pt}
+\raggedright
+\begin{document}
+
+{\Large\bfseries L08 — Stochastic optimisation and reliability-based design}
+
+\heading{0. The idea in one line}
+A deterministic optimum sits {\itshape exactly} on its binding constraints. If the data in
+those constraints is uncertain, the optimum holds about half the time. $\beta=0$ is a coin flip.
+
+\heading{1. The five steps}
+\begin{enumerate}
+\item Write every uncertain constraint as $g_j(x,y)\le0$; list each random $y_i$ with
+      $\bar y_i$ and $\sigma_{y_i}$.
+\item Write $\bar g_j(x)$ and $\sigma_{g_j}(x)$.
+\item \textit{How reliable is a given $x$?} \quad
+      $\beta_j = -\bar g_j/\sigma_{g_j}$, \quad $P[g_j\le0]=\Phi(\beta_j)$.
+\item \textit{Design for reliability $p_j$:} \quad
+      $\bar g_j(x) + \Phi^{-1}(p_j)\,\sigma_{g_j}(x)\le 0$ \quad — fmincon.
+\item Check by Monte Carlo: each constraint, {\itshape and the design as a whole}.
+\end{enumerate}
+
+\heading{2. Step 2 — the propagation rule}
+For a weighted sum of independent random variables, $g=\sum_k \alpha_k y_k$:
+\[
+  \boxed{\;\bar g = \sum_k \alpha_k \bar y_k\;}
+  \qquad
+  \boxed{\;\sigma_g^{2} = \sum_k \alpha_k^{2}\,\sigma_{y_k}^{2}\;}
+\]
+{\bfseries The mean takes the weights — the variance takes the weights {\itshape squared}.}
+Signs disappear in the variance: a $-1$ weight contributes $+\sigma^2$.
+
+Worked example, $g = a_2/x - a_1$ (load/size minus strength), weights $1/x$ and $-1$:
+\[
+  \bar g(x) = \frac{\bar a_2}{x}-\bar a_1,
+  \qquad
+  \sigma_g(x) = \sqrt{\sigma_{a_1}^{2}+\left(\frac{\sigma_{a_2}}{x}\right)^{2}} .
+\]
+Both are functions of $x$ alone — the histogram without ever sampling.
+
+\heading{3. Step 3 — the reliability index}
+\[
+  P[g\le0] = \Phi(\beta),\qquad \beta = -\frac{\bar g}{\sigma_g}
+\]
+$\beta$ is ``how many standard deviations of safety margin you hold''. It is dimensionless, so
+it compares across constraints with different units.
+\begin{center}
+\begin{tabular}{lccccc}
+$\beta$ & 0 & 1 & 2.33 & 3 & \\
+$\Phi(\beta)$ & 50\,\% & 84\,\% & 99\,\% & 99.87\,\% & \texttt{normcdf(beta)}\\
+\end{tabular}
+\end{center}
+
+\heading{4. Step 4 — a probability becomes a constraint}
+This is the key algebraic move of the lecture:
+\[
+  P[g\le0]\ge p
+  \;\Longleftrightarrow\;
+  \Phi(\beta)\ge p
+  \;\overset{\Phi\ \text{increasing}}{\Longleftrightarrow}\;
+  -\frac{\bar g(x)}{\sigma_g(x)} \ge \Phi^{-1}(p)
+  \;\Longleftrightarrow\;
+  \boxed{\;\bar g(x)+\Phi^{-1}(p)\,\sigma_g(x)\le 0\;}
+\]
+The last step multiplies by $\sigma_g>0$, so the inequality direction survives. The random
+variables are {\itshape gone}: only known means and standard deviations remain, and $x$ is the
+only unknown. It is now an ordinary L04 nonlinear constraint, \texttt{c <= 0}.
+\begin{center}
+\begin{tabular}{lccccc}
+$p$ & 50\,\% & 90\,\% & 95\,\% & 99\,\% & 99.9\,\%\\
+$\Phi^{-1}(p)$ \;\texttt{norminv(p)} & 0.000 & 1.282 & 1.645 & 2.326 & 3.090\\
+\end{tabular}
+\end{center}
+At $p=0.5$, $\Phi^{-1}=0$ and the constraint collapses to $\bar g\le0$ — {\bfseries the
+deterministic problem is the $p=50\,\%$ special case}. That is the assertion to put in your
+script.
+
+\heading{5. The price of reliability}
+\[
+  \text{size } x:\quad 0.400\;(50\%)\;\to\;0.506\;(95\%)\;\to\;0.560\;(99\%)\;\to\;0.631\;(99.9\%)
+\]
+A factor $1.40$ at 99\,\% — which is the safety factor $1.4$–$1.5$ written into civil and
+structural design codes, derived rather than decreed. The cost is nonlinear: the last few
+nines are the expensive ones, because $\Phi^{-1}$ steepens without bound.
+
+\heading{6. Step 5 — Monte Carlo, and the limitation that matters}
+\[
+  \texttt{p = mean(g(x,Y) <= 0)}\qquad Y \sim \text{sampled } N \text{ times}
+\]
+\textcolor{warn}{Each constraint at $p$ is {\itshape not} the design at $p$.} The design needs
+{\bfseries all} constraints at once, so the system reliability is lower than any individual
+one. With $m$ constraints:
+\[
+  P[\text{all hold}] \;\le\; \min_j p_j,
+  \qquad\text{and if the } g_j \text{ are independent},\quad
+  P[\text{all hold}] = \prod_{j=1}^{m} p_j .
+\]
+Nine constraints each at $99\,\%$, independent: $0.99^{9}=91.4\,\%$ — not $99\,\%$. To target a
+{\itshape system} reliability $p_{\text{sys}}$ directly, constrain the product (in logs, for
+conditioning):
+\[
+  \sum_{j=1}^{m}\ln\Phi\!\left(\beta_j(x)\right) \;\ge\; \ln p_{\text{sys}}
+  \qquad\Longleftrightarrow\qquad
+  \texttt{c} = \ln p_{\text{sys}} - \sum_j \ln\Phi(\beta_j(x)) \le 0
+\]
+This is one nonlinear constraint coupling all $m$ events, and it is {\itshape exact} whenever
+each $g_j$ contains its own distinct random variables.
+
+\heading{7. Other limitations to state honestly}
+\begin{enumerate}
+\item {\bfseries Normality.} $\Phi$ assumes $g$ is Gaussian. It is exactly so for a linear
+      combination of Gaussians; for a nonlinear $g$ (like $a_2/x$) it is a first-order
+      approximation — good near the mean, worse far out in the tail, which is precisely where
+      high reliability lives. Monte Carlo is the check.
+\item {\bfseries Independence.} Correlated $y_i$ add covariance terms to $\sigma_g^2$.
+\item {\bfseries The $\sigma$'s are assumptions too.} A CoV of $0.10$ is a modelling choice;
+      report it as one.
+\end{enumerate}
+
+\end{document}

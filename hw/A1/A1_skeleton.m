@@ -36,7 +36,7 @@ veg    = ["potato" "tomato" "okra" "eggplant" "spinach"];
 
 % <<< TODO 1 >>>  The cost vector.  One line, using price(:).
 % Remember x is flattened the same way, so the two line up automatically.
-% c = ...
+c = price(:);                  % $/t for each of the 20 farm-vegetable pairs
 
 % --- farm capacity rows:  for each farm f,  sum over v of x(f,v) <= supply(f)
 % The mask trick: make a 4x5 matrix of zeros, put 1s where you want to add up,
@@ -56,6 +56,7 @@ for v = 1:nV
     % <<< TODO 3 >>>  Exactly like TODO 2 above, but down a COLUMN instead of
     % across a row: put 1s in column v of M, so this row adds up everything
     % bought OF vegetable v.  One line.
+    M(:, v) = 1;               % 1s down column v: "vegetable v, from any farm"
 
     Aveg(v, :) = M(:)';
 end
@@ -68,14 +69,14 @@ b = [supply; -demand];
 
 % <<< TODO 4a >>>  Lower bounds: you cannot buy a negative quantity.  One line.
 % There are nF*nV variables in total.
-% lb = ...
+lb = zeros(nF*nV, 1);          % no upper bound: the farm rows already cap each farm
 
 opts = optimoptions('linprog', 'Display', 'none');
 
 % <<< TODO 4b >>>  Solve it.  Ask for the solution and the objective value.
 % The call is  linprog(c, A, b, Aeq, beq, lb, ub, opts)  -- there are no
 % equality constraints and no upper bounds here, so pass [] for Aeq, beq and ub.
-% [x, cost] = linprog( ... );
+[x, cost] = linprog(c, A, b, [], [], lb, [], opts);
 
 X = reshape(x, nF, nV);        % unflatten the answer back into a 4x5 grid
 

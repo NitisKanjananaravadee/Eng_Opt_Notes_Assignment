@@ -1,0 +1,347 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{mathpazo}          % Palatino text and maths -- easier to read than Computer Modern
+\usepackage{microtype}         % subtler line breaking, fewer ragged edges
+\usepackage{amsmath,amssymb}
+\usepackage{bm}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{parskip}
+
+% --- headings -------------------------------------------------------------
+\definecolor{rule}{gray}{0.55}
+\titleformat{\section}{\large\bfseries}{}{0pt}{}[{\color{rule}\titlerule}]
+\titlespacing*{\section}{0pt}{1.6em}{0.8em}
+\titleformat{\subsection}{\bfseries}{}{0pt}{}
+\titlespacing*{\subsection}{0pt}{1.2em}{0.4em}
+
+% --- tableaux -------------------------------------------------------------
+% Fixed-width columns so the rows of a stacked row operation line up entry by entry.
+\newcolumntype{V}{>{\centering\arraybackslash$}p{2.7em}<{$}}
+\newcommand{\rowv}[1]{\left[\begin{array}{VVVVVVV|V}#1\end{array}\right]}
+
+% A boxed numeric display, kept on one page, in a slightly smaller size.
+\definecolor{pivot}{RGB}{255,236,189}
+\newcommand{\piv}[1]{\colorbox{pivot}{$#1$}}   % shades the pivot element
+\newenvironment{tableau}[1]
+  {\begin{center}\begin{minipage}{\linewidth}\centering\small
+   \textbf{#1}\\[0.4em]}
+  {\end{minipage}\end{center}}
+
+\title{Engineering Optimisation --- Assignment 2}
+\author{Nitis Kanjananaravadee \and Pannavit Hurattanapirom \and Tara Asavathanabode}
+\date{}
+
+\begin{document}
+\maketitle
+
+
+\section*{Question 1: A spring system --- three carts}
+
+\subsection*{1. The total potential energy}
+
+A grounded spring stretches by the displacement of its cart; a coupling spring
+by the \emph{difference} of the two it joins. From the table, $k_1$, $k_2$,
+$k_3$ ground carts 1, 2, 3, and $k_7$, $k_8$ also ground cart 3 (to the right
+wall); $k_4$, $k_5$, $k_6$ join carts 1--2, 1--3 and 2--3.
+
+\begin{align*}
+  V(x_1,x_2,x_3) =\ & \tfrac12 (5000)x_1^2 + \tfrac12 (1500)x_2^2
+    + \tfrac12 (2000)x_3^2 && k_1,\ k_2,\ k_3 \text{ (grounded)} \\
+  & + \tfrac12 (1000)(x_2 - x_1)^2 && k_4 \text{ (carts 1--2)} \\
+  & + \tfrac12 (2500)(x_3 - x_1)^2 && k_5 \text{ (carts 1--3)} \\
+  & + \tfrac12 (500)(x_3 - x_2)^2 && k_6 \text{ (carts 2--3)} \\
+  & + \tfrac12 (3000)x_3^2 + \tfrac12 (3500)x_3^2 && k_7,\ k_8 \text{ (cart 3 -- right wall)} \\
+  & - 1000x_1 - 2000x_2 - 3000x_3 && \text{work of the loads}
+\end{align*}
+
+Collected, this is the quadratic form used later:
+\[
+  V(\bm{x}) = \tfrac12 \bm{x}^\top \bm{K}\bm{x} - \bm{x}^\top \bm{P},
+  \qquad
+  \bm{K} = \begin{bmatrix} 8500 & -1000 & -2500 \\ -1000 & 3000 & -500 \\
+                           -2500 & -500 & 11500 \end{bmatrix},
+  \qquad
+  \bm{P} = \begin{bmatrix} 1000 \\ 2000 \\ 3000 \end{bmatrix}
+\]
+Each diagonal is the sum of the stiffnesses touching that cart; each
+off-diagonal is minus the spring joining those two carts.
+
+\subsection*{2. The optimisation problem}
+
+In the standard form of eq.~(2) of the assignment:
+
+\begin{align*}
+  \min_{\bm{x}\,\in\,\mathbb{R}^3} \quad
+  & f(\bm{x}) = V(x_1,x_2,x_3)
+    = \tfrac12 \bm{x}^\top\bm{K}\bm{x} - \bm{x}^\top\bm{P}
+  && \text{energy, J} \\
+  \text{s.t.} \quad
+  & \text{no } g_j(\bm{x}) \le 0, && m = 0 \\
+  & \text{no } h_k(\bm{x}) = 0,   && p = 0
+\end{align*}
+
+\textbf{(a) Design variables.} Three: $x_1$, $x_2$, $x_3$, the cart
+displacements, positive to the right [m].
+
+\textbf{(b) Objective.} The potential energy $V(\bm{x})$ [J = N\,m], minimised
+--- by the principle of minimum potential energy.
+
+\textbf{(c) Constraints.} None. The carts are on rollers: no stops, no
+clearances, no bounds. The walls are not constraints either; they enter as the
+springs grounded to them, which belongs to the objective. So $m = p = 0$ and
+every $\bm{x} \in \mathbb{R}^3$ is feasible.
+
+\textbf{(d) Classification.} Nonlinear ($V$ is quadratic), unconstrained,
+continuous, single-objective, \emph{convex}. Each strain term
+$\tfrac12 k(\cdot)^2$ with $k > 0$ is convex, a sum of convex functions is
+convex, and $-\bm{P}^\top\bm{x}$ is linear. So the minimum is global: the
+equilibrium is unique, which means the structure is stable.
+
+\subsection*{3. Solved two ways with \texttt{fminunc}}
+
+\begin{sloppypar}
+Both runs start from $\bm{x}^{(1)} = (0,0,0)$ with identical settings; the only
+difference is \texttt{HessUpdate} (\texttt{a2\_q1\_energy\_skeleton.m}).
+\end{sloppypar}
+
+\begin{center}
+\begin{tabular}{lrrrrrr}
+\toprule
+method & iterations & f evals & flag & $x_1$ [m] & $x_2$ [m] & $x_3$ [m] \\
+\midrule
+steepest descent & 41 & 812 & 5 & 0.324141 & 0.835994 & 0.367683 \\
+quasi-Newton (BFGS) & 9 & 44 & 5 & 0.324141 & 0.835994 & 0.367683 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{(a)} Both return
+$\bm{x}^\star = (0.324141,\ 0.835994,\ 0.367683)$ m, agreeing to
+$7 \times 10^{-9}$ m, with $V^\star = -1549.588776$ J. Exactly,
+$\bm{x}^\star = \left(\tfrac{670}{2067},\ \tfrac{576}{689},\ \tfrac{760}{2067}\right)$ m
+and $V^\star = -\tfrac{3203000}{2067}$ J.
+
+\textbf{(b)} 41 iterations and 812 function evaluations against 9 and 44. Both
+exit with flag 5.
+
+\textbf{(c)} Quasi-Newton has \emph{curvature}; steepest descent has only the
+slope $\bm{d}_k = -\nabla V$. A slope gives the direction but not the distance,
+so the distance comes from a line search --- and with exact line searches
+consecutive gradients are perpendicular, so the path zig-zags across the valley.
+BFGS builds $\bm{H}^{-1}$ from how the gradient changes step to step, curvature
+for free, so its steps approach Newton's. The bowl is only mildly elongated
+($\kappa(\bm{K}) = 12915.8/2714.4 = 4.76$), so the gap is $4.5\times$, not the
+$380\times$ of Rosenbrock's function.
+
+The Hessian printed at the solution, which part 4 needs:
+\[
+  \nabla^2 V = \begin{bmatrix} 8500 & -1000 & -2500 \\ -1000 & 3000 & -500 \\
+                               -2500 & -500 & 11500 \end{bmatrix},
+  \qquad \text{eigenvalues } 2714.4,\ 7369.8,\ 12915.8 .
+\]
+All three are positive, so the stationary point is a minimum.
+
+\subsection*{4. The finite-element route, and the comparison}
+
+\begin{sloppypar}
+\textbf{(a)} Nodes 1--3 are the carts, 4 the left wall, 5 the right. Each spring
+is a two-node element
+$k_e \left[\begin{smallmatrix} 1 & -1 \\ -1 & 1\end{smallmatrix}\right]$ on its
+own pair of freedoms (\texttt{a2\_q1\_assembly\_skeleton.m}). Assembled, the
+$5 \times 5$ matrix is singular --- every row sums to zero, since translating
+everything stretches no spring --- with $\mathrm{rank}\,\bm{K} = 4$ of 5.
+Setting $u_4 = u_5 = 0$ strikes rows and columns 4 and 5: a prescribed freedom
+carries no equilibrium equation. The condensed system:
+\end{sloppypar}
+\[
+  \bm{K}_{ff}\bm{x}_f = \bm{f}_f :
+  \qquad
+  \begin{bmatrix} 8500 & -1000 & -2500 \\ -1000 & 3000 & -500 \\
+                  -2500 & -500 & 11500 \end{bmatrix}
+  \begin{bmatrix} x_1 \\ x_2 \\ x_3 \end{bmatrix}
+  =
+  \begin{bmatrix} 1000 \\ 2000 \\ 3000 \end{bmatrix}
+\]
+One solve gives $\bm{x}_f = (0.32414127,\ 0.83599419,\ 0.36768263)$ m, matching
+part 3 to eight decimals, with the same energy $-1549.588776$ J. Residual
+$4.7\times10^{-13}$ N; reactions 3610.1 N and 2389.9 N, summing to the 6000 N
+applied.
+
+\textbf{(b) [Bonus] Yes, and necessarily so.} In collected form,
+\[
+  V(\bm{x}) = \tfrac12 \bm{x}^\top\bm{K}\bm{x} - \bm{x}^\top\bm{P},
+\]
+the matrix that appears is the assembled stiffness matrix. Differentiate once,
+\[
+  \nabla V = \bm{K}\bm{x} - \bm{P} = \underbrace{\bm{K}\bm{x}}_{\text{internal force}}
+            - \underbrace{\bm{P}}_{\text{applied load}},
+\]
+the out-of-balance force, so $\nabla V = \bm{0}$ \emph{is} the equilibrium
+equation $\bm{K}\bm{x} = \bm{P}$. Differentiate again,
+\[
+  \nabla^2 V = \bm{K} = \bm{K}_{ff},
+\]
+whatever $\bm{x}$ is, since $V$ is quadratic. Hence the identical matrices --- and
+one Newton step from any start,
+$\bm{x}^{(2)} = \bm{x}^{(1)} - \bm{H}^{-1}\nabla V(\bm{x}^{(1)})
+= \bm{x}^{(1)} - \bm{K}^{-1}(\bm{K}\bm{x}^{(1)} - \bm{P}) = \bm{K}^{-1}\bm{P}$,
+is the finite-element solve: the starting point cancels.
+
+Only linear springs do this. With large deflections, plasticity or contact $V$
+is no longer quadratic, $\bm{H}$ is no longer constant, and one solve no longer
+suffices.
+
+\newpage
+\section*{Question 2: A constrained design problem --- speed reducer}
+
+\subsection*{1. Setting it up and solving it}
+
+All eleven constraints are written as
+$g_j = \text{value}/\text{limit} - 1 \le 0$
+(\texttt{a2\_q2\_reducer\_skeleton.m}).
+
+\textbf{(a) Six already compare against 1} --- $g_1$, $g_2$, $g_3$, $g_4$,
+$g_{10}$, $g_{11}$ --- so only the $-1$ is needed:
+\[
+  g_1 = \frac{27}{x_1x_2^2x_3} - 1 \le 0,
+  \qquad
+  g_{10} = \frac{1.5x_6 + 1.9}{x_4} - 1 \le 0 .
+\]
+
+\textbf{(b) Four have a limit that is not 1} --- $g_5$ (1100), $g_6$ (850),
+$g_7$ (40), $g_9$ (12) --- so divide by the limit first, then subtract 1:
+\[
+  g_5 = \frac{1}{1100}\cdot\frac{1}{0.1x_6^3}
+        \sqrt{\left(\frac{745x_4}{x_2x_3}\right)^{\!2} + 16.9\times10^6} - 1 \le 0,
+  \qquad
+  g_7 = \frac{x_2x_3}{40} - 1 \le 0 .
+\]
+
+\textbf{(c) $g_8$ is a $\ge$} --- the lower bound $x_1/x_2 \ge 5$. Dividing by 5
+leaves it pointing the wrong way, so what changes places is the \emph{limit}: it
+goes on top, which flips the sense and keeps the constraint dimensionless.
+\[
+  g_8 = \frac{5}{x_1/x_2} - 1 \le 0 .
+\]
+Writing $5 - x_1/x_2 \le 0$ instead would carry the units of a ratio and make
+$\lambda_8$ incomparable with the rest.
+
+\texttt{fmincon} (SQP from the midpoint of the bounds) converges with
+\textbf{exit flag 1} in \textbf{4 iterations} and 40 function evaluations, to
+\[
+  f^\star = 2994.3413
+\]
+at the design
+
+\begin{center}
+\begin{tabular}{llrrrl}
+\toprule
+ & meaning & $x^\star$ & lb & ub & \\
+\midrule
+$x_1$ & $b$, face width        & 3.500000 & 2.6 & 3.6 & set by $g_8$ \\
+$x_2$ & $m$, module            & 0.700000 & 0.7 & 0.8 & at lower bound \\
+$x_3$ & $z$, teeth on pinion   & 17.000000 & 17 & 28 & at lower bound \\
+$x_4$ & $l_1$, span shaft 1    & 7.300000 & 7.3 & 8.3 & at lower bound \\
+$x_5$ & $l_2$, span shaft 2    & 7.715320 & 7.3 & 8.3 & set by $g_{11}$ \\
+$x_6$ & $d_1$, diameter shaft 1 & 3.350215 & 2.9 & 3.9 & set by $g_5$ \\
+$x_7$ & $d_2$, diameter shaft 2 & 5.286654 & 5.0 & 5.5 & set by $g_6$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{center}
+\begin{tabular}{llr l}
+\toprule
+ & constraint & $g_j(\bm{x}^\star)$ & status \\
+\midrule
+$g_1$ & tooth bending stress        & $-0.073915$ & inactive \\
+$g_2$ & surface (contact) stress    & $-0.197999$ & inactive \\
+$g_3$ & deflection, shaft 1         & $-0.499172$ & inactive \\
+$g_4$ & deflection, shaft 2         & $-0.904644$ & inactive \\
+$g_5$ & stress, shaft 1             & $0$         & \textbf{active} \\
+$g_6$ & stress, shaft 2             & $0$         & \textbf{active} \\
+$g_7$ & $x_2x_3 \le 40$, housing    & $-0.702500$ & inactive \\
+$g_8$ & $x_1/x_2 \ge 5$             & $0$         & \textbf{active} \\
+$g_9$ & $x_1/x_2 \le 12$            & $-0.583333$ & inactive \\
+$g_{10}$ & hub and bearings, shaft 1 & $-0.051326$ & inactive \\
+$g_{11}$ & hub and bearings, shaft 2 & $0$        & \textbf{active} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{2. The multipliers}
+
+\textbf{(a) The active constraints and their multipliers.}
+
+\begin{center}
+\begin{tabular}{llr}
+\toprule
+rank & constraint & $\lambda$ \\
+\midrule
+1 & $g_8$\quad $x_1/x_2 \ge 5$, face width at least five modules & 1374.71 \\
+2 & $g_6$\quad stress in shaft 2                                 & 1162.31 \\
+3 & $g_5$\quad stress in shaft 1                                 & 284.56 \\
+4 & $g_{11}$\, hub and bearings on shaft 2                       & 171.08 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Three \emph{bounds} are active too: $x_2$, $x_3$, $x_4$ at their lower bounds,
+with multipliers 6474.92, 172.46 and 9.29. They were never divided by a limit,
+so they carry their own variable's units and cannot be ranked against the four
+above.
+
+\textbf{(b) Which to relax.} $g_8$, the face-width-to-module ratio, at
+$\lambda = 1374.71$ --- 18\% above the next and nearly five times $g_5$. Ranking
+works \emph{only} because every $g_j$ is value/limit $-1$, so each $\lambda_j$ is
+the same quantity: weight saved per unit of fractional relaxation.
+
+\textbf{(c) What that means for a real gearbox.} $g_8$ says the gear face must be
+at least five modules wide, $b \ge 5m$. A narrow face is harder to cut, and
+carries the load on less width, so misalignment presses on one end of the tooth.
+To be \emph{allowed} a narrower face: better shaft alignment, crowned teeth, a
+cutting process qualified that narrow. That permits the forbidden design; it
+does not fix a failure.
+
+\subsection*{3. Checking the published answer}
+
+Rao states $f^\star = 2985.22$ at
+$\bm{x}^\star = \{3.5,\ 0.7,\ 17.0,\ 7.3,\ 7.3,\ 3.35,\ 5.29\}^\top$.
+
+\textbf{(a) The objective.} Evaluating eq.~(3) at his design gives
+$f(\bm{x}_r) = 2987.2848$, 2.06 heavier than the 2985.22 he prints. His own two
+numbers disagree.
+
+\textbf{(b) The constraints.} Two are violated:
+
+\begin{center}
+\begin{tabular}{llrl}
+\toprule
+ & constraint & $g_j(\bm{x}_r)$ & \\
+\midrule
+$g_5$ & stress, shaft 1 & $+0.000192$ & violated, marginally \\
+$g_{11}$ & hub and bearings, shaft 2 & $+0.057397$ & \textbf{violated by 5.7\%} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The second needs no solver: $g_{11}$ asks $1.1x_7 + 1.9 \le x_5$, and
+$1.1(5.29) + 1.9 = 7.719 > 7.3 = x_5$. His shaft-2 span is 0.42 too short for
+its diameter --- no room for hub, bearings and shoulders.
+
+\textbf{Which to trust.} Ours. It satisfies all eleven constraints to
+$2\times10^{-14}$; his is lighter only because it is infeasible. Our
+$x_5 = 7.7153$ is the shortest span $g_{11}$ allows, and that stretch is the
+extra 7 units of weight.
+
+Two caveats. Ours is a \emph{local} optimum, since the problem is not convex ---
+though 40 random starts (independent SQP, outside MATLAB) all returned it,
+agreeing to $2\times10^{-4}$: evidence, not proof. And if Rao used a different
+$g_{11}$, his number is right for his problem, not ours.
+
+\end{document}

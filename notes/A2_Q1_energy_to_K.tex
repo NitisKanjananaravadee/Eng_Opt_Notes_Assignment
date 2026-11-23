@@ -1,0 +1,116 @@
+\documentclass[varwidth=14cm,border=10pt]{standalone}
+\usepackage{amsmath,xcolor,array}
+\usepackage{fontspec,unicode-math}
+\setmainfont{DejaVu Sans}[ItalicFont={DejaVu Sans},ItalicFeatures={FakeSlant=0.2},BoldItalicFont={DejaVu Sans Bold},BoldItalicFeatures={FakeSlant=0.2}]
+\setmathfont{texgyredejavu-math.otf}
+\setmathfont{DejaVu Sans}[range={up,bfup}]
+\setmathfont{DejaVu Sans}[range={it,bfit},FakeSlant=0.2]
+\setmathfont{texgyredejavu-math.otf}[range={"2202,"1D715,"03B5,"03F5,"2112,"2131}]
+\pagecolor[HTML]{1E1E2E}\color[HTML]{F4F4F4}
+\definecolor{accent}{HTML}{89B4FA}
+\definecolor{warn}{HTML}{F38BA8}
+\definecolor{good}{HTML}{A6E3A1}
+\newcommand{\heading}[1]{\par\medskip{\large\bfseries\color{accent}#1}\par\smallskip}
+\setlength{\parindent}{0pt}
+\raggedright
+\begin{document}
+
+{\Large\bfseries A2 Q1 — where $K$ and $P$ come from}
+
+\heading{1. The one algebraic identity behind it}
+A spring of stiffness $k$ joining carts $i$ and $j$ stores
+\[
+  \tfrac12 k\,(x_j-x_i)^2
+  \;=\;
+  \tfrac12 k\,x_i^2+\tfrac12 k\,x_j^2-k\,x_ix_j .
+\]
+Read off the quadratic form $\tfrac12x^{\!\top}Kx$: that single spring puts
+\[
+  +k \text{ on } K_{ii}, \qquad +k \text{ on } K_{jj}, \qquad -k \text{ on } K_{ij}=K_{ji}.
+\]
+A {\bfseries grounded} spring is the same with the wall at $x=0$:
+$\tfrac12k\,x_i^2$, so it adds $+k$ to $K_{ii}$ only --- no off-diagonal,
+because a wall is not a design variable.
+
+\heading{2. The rule that falls out}
+\[
+  \boxed{\;K_{ii}=\!\!\sum_{\text{springs touching } i}\!\! k,
+  \qquad
+  K_{ij}=-\,k_{\text{(the spring joining } i,j)}\;}
+\]
+
+\heading{3. Your eight springs, added up}
+\[
+  \begin{array}{@{}l@{}}
+    K_{11}=k_1+k_4+k_5=5000+1000+2500=8500\\[1pt]
+    K_{22}=k_2+k_4+k_6=1500+1000+500=3000\\[1pt]
+    K_{33}=k_3+k_5+k_6+k_7+k_8=2000+2500+500+3000+3500=11500\\[4pt]
+    K_{12}=-k_4=-1000,\qquad K_{13}=-k_5=-2500,\qquad K_{23}=-k_6=-500
+  \end{array}
+\]
+Cart 3 has the big diagonal because {\bfseries five} springs touch it: ground,
+two couplings, and two to the right wall.
+
+\heading{4. Where $P$ comes from}
+The loads do {\itshape work}, which {\itshape lowers} energy:
+\[
+  -1000x_1-2000x_2-3000x_3 \;=\; -\,x^{\!\top}P,
+  \qquad P=(1000,2000,3000)^{\!\top}\text{ N}.
+\]
+That is the only reason the minus sign is there, and the only reason the problem
+has a finite minimum --- without $P$, $V=\tfrac12x^{\!\top}Kx$ is minimised by
+$x=0$.
+
+\heading{5. Why this form is worth collecting}
+\[
+  \nabla V = Kx-P \;=\; 0 \quad\Longleftrightarrow\quad \boxed{\,Kx=P\,},
+  \qquad \nabla^2V = K .
+\]
+{\color{good}Minimising the potential energy \emph{is} solving equilibrium.}
+The optimisation problem and the FE problem are the same problem --- which is
+exactly what part 4 checks by assembling $K$ a second way, from
+$k_e\!\left[\begin{smallmatrix}1&-1\\-1&1\end{smallmatrix}\right]$ elements, and
+getting the same matrix.
+
+\heading{6. Free checks on your $K$}
+\begin{itemize}\itemsep0pt
+\item Symmetric: $K=K^{\!\top}$. Springs have no preferred direction.
+\item Diagonal dominance: each row's diagonal $\ge$ sum of $|$off-diagonals$|$,
+      strictly so wherever a grounded spring sits.
+\item Positive definite: eigenvalues $2714.4,\ 7369.8,\ 12915.8>0$, so the
+      stationary point is a {\bfseries minimum}, and the only one.
+\item {\color{warn}Rows do not sum to zero here} --- they would for a free
+      floating structure, but grounding to the walls is what removes the rigid
+      translation and makes $K$ invertible.
+\end{itemize}
+
+\heading{7. Yes --- this is Lecture 3, slides 30--38}
+L03 does the identical thing on a smaller system (Rao Fig.~6.21): two bodies,
+four springs, loads 1000 and 2000~lb.
+\[
+  V(x_1,x_2)=\tfrac12(300)x_1^2+\tfrac12(400)(x_2-x_1)^2+\tfrac12(200)x_2^2
+             +\tfrac12(100)x_2^2-1000x_1-2000x_2
+\]
+and the general statement it gives you is
+\[
+  V(x)=\underbrace{\sum_i \tfrac12 k_i\Delta_i^{\,2}}_{\text{strain energy}}
+       -\underbrace{\sum_j P_j x_j}_{\text{work of the loads}} .
+\]
+The slide titled {\itshape The two routes meet} is this note in three lines:
+\begin{enumerate}\itemsep0pt
+\item Expand and collect: $V=\tfrac12x^{\!\top}Kx-x^{\!\top}P$, {\itshape with
+      exactly the assembled $K$}.
+\item $\nabla V=Kx-P=(\text{internal force})-(\text{applied load})$ --- the
+      out-of-balance force.
+\item $H=K$.
+\end{enumerate}
+And the punchline A2 part 4 is checking:
+\[
+  x^{(2)}=x^{(1)}-H^{-1}\nabla V = x^{(1)}-K^{-1}\!\left(Kx^{(1)}-P\right)=K^{-1}P .
+\]
+{\color{good}The starting point cancels: one Newton step \emph{is} the assembly
+solve.} {\color{warn}Only because the springs are linear} --- add large
+deflections, plasticity or contact and $H$ is no longer constant, which is when
+a real FE code must iterate.
+
+\end{document}

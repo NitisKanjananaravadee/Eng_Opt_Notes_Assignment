@@ -1,0 +1,222 @@
+\documentclass[varwidth=15cm,border=10pt]{standalone}
+\usepackage{amsmath,xcolor,array}
+\usepackage{fontspec,unicode-math}
+\setmainfont{DejaVu Sans}[ItalicFont={DejaVu Sans},ItalicFeatures={FakeSlant=0.2},BoldItalicFont={DejaVu Sans Bold},BoldItalicFeatures={FakeSlant=0.2}]
+\setmathfont{texgyredejavu-math.otf}
+\setmathfont{DejaVu Sans}[range={up,bfup}]
+\setmathfont{DejaVu Sans}[range={it,bfit},FakeSlant=0.2]
+\setmathfont{texgyredejavu-math.otf}[range={"2202,"1D715,"03B5,"03F5,"2112,"2131}]
+\pagecolor[HTML]{1E1E2E}\color[HTML]{F4F4F4}
+\definecolor{accent}{HTML}{89B4FA}
+\definecolor{warn}{HTML}{F38BA8}
+\definecolor{good}{HTML}{A6E3A1}
+\definecolor{ref}{HTML}{9399B2}
+\newcommand{\heading}[1]{\par\medskip{\large\bfseries\color{accent}#1}\par\smallskip}
+\newcommand{\src}[1]{{\color{ref}\small[#1]}}
+\newcommand{\dolabel}{{\bfseries DO}\ \ }
+\newcommand{\why}{{\bfseries\color{accent}WHY}\ \ }
+\newcommand{\chk}{{\bfseries\color{good}CHECK}\ \ }
+\newcommand{\rep}{{\bfseries\color{warn}WRITE}\ \ }
+\setlength{\parindent}{0pt}
+\raggedright
+\begin{document}
+
+{\Large\bfseries Solving A3 Question 1 yourself — the procedure}
+
+\heading{Before you start}
+L05 slide 29, on this assignment: {\itshape ``The two settings do not have the
+same answer to `which method?', and saying which, and {\bfseries why}, is what is
+being assessed.''} So the deliverable is an argument, and the numbers are its
+evidence. Every step below carries what to do, why it is right, how to know it
+worked, and what belongs in the report.
+
+{\bfseries The one idea.} There is no formula for $p$, so you cannot
+differentiate it \src{slides 3--4}. But $A(x)p(x)=q$ is an {\itshape identity},
+true for every $x$, so differentiate {\itshape that} \src{slide 17}. And since
+$A=\sum_e x_eA_e$ is linear, $\partial A/\partial x_e=A_e$ free of charge
+\src{slide 11}. Everything else is bookkeeping about which index you solve over.
+
+\heading{Step 1 — Count, before you open MATLAB}
+\dolabel Write down $n$ (design variables) and $m$ (implicit responses) for both
+settings: A is $n=12$, $m=1$; B is $n=2$, $m=7$.\par
+\why Direct costs one solve per design variable, the adjoint one per response;
+take the smaller \src{slide 22}. The counts swap between the settings, so the
+answer swaps --- the method follows the {\itshape shape} of the problem, not the
+physics.\par
+\rep Setting A: {\bfseries adjoint}. Setting B: {\bfseries direct}. One sentence
+each, stating {\itshape both} counts --- the rule is a comparison, not a
+preference. Do this before any code; the question asks for it in that order.
+
+\heading{Step 2 — Assemble $A$ and $q$}
+\dolabel Build $A$ directly, without forming each $A_e$:
+\[
+  A_{ii}=\!\!\sum_{\text{pipes at } i}\!\! x_e, \qquad
+  A_{ij}=-x_e \ \text{if pipe } e \text{ joins } i,j, \qquad
+  A_{ij}=0 \text{ otherwise},
+\]
+then strike row and column 8, and set $q=e_1$.\par
+\why Junction 8 is held at $p_8=0$. Without striking it every row sums to zero,
+$A$ is singular and pressure is defined only up to a constant \src{slide 9}.\par
+{\color{warn}Trap:} pipes 10 and 11 {\bfseries still count in the diagonals} of
+junctions 6 and 7. A grounded neighbour contributes to the diagonal and nothing
+else.
+\[
+\small
+A=\begin{bmatrix}
+ 5.5&-3.0&-2.5& 0 & 0 & 0 & 0\\
+-3.0& 6.0&-1.0&-2.0& 0 & 0 & 0\\
+-2.5&-1.0& 6.3&-0.8&-2.0& 0 & 0\\
+ 0 &-2.0&-0.8& 5.8&-1.2&-1.8& 0\\
+ 0 & 0 &-2.0&-1.2& 4.8& 0 &-1.6\\
+ 0 & 0 & 0 &-1.8& 0 & 4.1&-0.9\\
+ 0 & 0 & 0 & 0 &-1.6&-0.9& 3.6
+\end{bmatrix}
+\]
+\chk Rows 1--5 sum to zero. Rows 6 and 7 leave $4.1-1.8-0.9=1.4=x_{10}$ and
+$3.6-1.6-0.9=1.1=x_{11}$ --- the conductances to ground. Also $A=A^{\!\top}$. A
+row that should sum to zero and does not means a mis-entered pipe. Fix it here,
+not three steps later.
+
+\heading{Step 3 — Solve once}
+\dolabel $p=A\backslash q$. You should get
+\[
+  p=(1.09135,\ 0.92901,\ 0.88615,\ 0.70694,\ 0.67990,\ 0.39857,\ 0.40182),
+\]
+so $f=p_1=1.09135$.\par
+\chk Substitute back into any row by hand:
+$5.5(1.09135)-3.0(0.92901)-2.5(0.88615)=1.00002\approx q_1$, and row 7 gives
+$-0.000001\approx0$. The residuals are your 5-digit rounding, not solver error.\par
+\chk Budget: $\sum_e L_ex_e=20.5752\le V=22$. The starting design is feasible ---
+say so, it costs one clause.
+
+\heading{Step 4 — Setting A: notice it is self-adjoint {\itshape before} coding}
+\dolabel Compare $c$ with $q$. The objective is $f=p_1=e_1^{\!\top}p$, so
+$c=e_1$; the flow enters at junction 1, so $q=e_1$. Hence $c=q$, and $A$ is
+symmetric.\par
+\why Then $A^{\!\top}\lambda=-c$ {\itshape is} the analysis with the load
+reversed, so $\lambda=-p$ and no adjoint solve is needed \src{slide 26 --- titled
+for this exact setting}. The gradient collapses:
+\[
+  \frac{df}{dx_e}=\lambda^{\!\top}A_e\,p=-p^{\!\top}A_e\,p=-\left(p_i-p_j\right)^2 .
+\]
+\rep The chain $c=q$ $\Rightarrow$ $\lambda=-p$ $\Rightarrow$ closed form. This is
+the single highest-value sentence in Question 1.
+
+\heading{Step 5 — Get the twelve numbers}
+\dolabel $df/dx_e=-(p_i-p_j)^2$ with $p_8=0$. No matrix, no solve --- a
+subtraction and a square, twelve times.
+\par\smallskip
+\small
+\begin{tabular}{rlrr|rlrr}
+ $e$ & $i$--$j$ & $p_i-p_j$ & $df/dx_e$ & $e$ & $i$--$j$ & $p_i-p_j$ & $df/dx_e$\\[2pt]
+\hline
+ 1&1--2&$0.16234$&$-0.026354$ &  7&4--6&$0.30837$&$-0.095092$\\
+ 2&1--3&$0.20520$&$-0.042107$ &  8&5--7&$0.27808$&$-0.077328$\\
+ 3&2--3&$0.04286$&$-0.001837$ &  9&6--7&$-0.00325$&$-0.0000106$\\
+ 4&2--4&$0.22207$&$-0.049315$ & 10&6--8&$0.39857$&$-0.158858$\\
+ 5&3--5&$0.20625$&$-0.042539$ & 11&7--8&$0.40182$&$-0.161459$\\
+ 6&4--5&$0.02704$&$-0.000731$ & 12&3--4&$0.17921$&$-0.032116$\\
+\end{tabular}
+\normalsize
+\par\smallskip
+\chk Three routes must agree: the adjoint product $\lambda^{\!\top}A_ep$, this
+closed form, and a direct solve. Machine precision ($10^{-16}$) or you have a
+bug. A central finite difference agrees only to $\sim10^{-9}$ --- that is its
+truncation error and is expected \src{slides 15--16}.\par
+{\color{warn}Pipe 9 will look wrong by hand:} $-1.0563\times10^{-5}$ against
+$-1.0584\times10^{-5}$, 0.2\% off. The reason is the reason it is small --- $p_6$
+and $p_7$ agree to three decimals, so subtracting them destroys your significant
+digits. The least accurate entry of a hand check is always the smallest one. Do
+not chase it.
+
+\heading{Step 6 — Count the solves you actually performed}
+\dolabel Report {\bfseries 2} --- one analysis, one adjoint --- or {\bfseries 1}
+if you used $\lambda=-p$. Direct would have cost $1+12=13$.\par
+\why One adjoint solve fills a {\itshape row} of the Jacobian, one direct solve a
+{\itshape column} \src{slides 18, 21, 22}. Here there is one row and twelve
+columns.\par
+{\color{warn}Trap:} if you also ran direct as a cross-check, do {\itshape not}
+report 13. Report the cost of the method you chose and mention the verification
+separately.
+
+\heading{Step 7 — The constraint that needs no analysis}
+\dolabel $\partial\!\left(\sum_e L_ex_e\right)\!/\partial x_e=L_e$ --- the pipe
+lengths themselves.\par
+\why $\sum_e L_ex_e$ is {\itshape explicit} in $x$: no pressure appears, so there
+is nothing to differentiate through. The lecture names this very constraint ``the
+opposite extreme'' from $c^{\!\top}p$ \src{slide 14}.
+
+\heading{Step 8 — Setting B: recount, then switch method}
+\dolabel $n=2$, $m=7$, so {\bfseries direct}: solve
+$A\,\partial p/\partial x_e=-A_ep$ for $e=1,2$. Each result is a full column of
+the $7\times2$ Jacobian. Total $1+2=3$ solves against the adjoint's $1+7=8$.\par
+\why Direct is indexed by the design, and the design is now small --- 14 Jacobian
+entries from 3 solves. The lecture works this exact case \src{slide 22}.\par
+\chk {\bfseries Row 1 is already known.} Setting A's objective {\itshape is}
+$p_1$, so
+\[
+  \frac{\partial p_1}{\partial x_1}=\frac{df}{dx_1}=-0.026353,
+  \qquad
+  \frac{\partial p_1}{\partial x_2}=\frac{df}{dx_2}=-0.042106 .
+\]
+If row 1 does not reproduce entries 1 and 2 of your twelve, one of the two
+settings is wrong. Free, and it catches a lot.\par
+\chk Signs: pipe 1 feeds the 2--4--6 branch, pipe 2 the 3--5--7 branch, so each
+column is positive on its own branch and negative on the other --- and row 1 is
+the only row negative in both.
+
+\heading{Step 9 — Setting B's objective}
+\dolabel $L_1x_1+L_2x_2$, gradient $(1.118,\,1.118)$. No analysis.\par
+\why The mirror of Step 7: in A the objective was implicit and the constraint
+free; in B the {\itshape constraints} are implicit and the objective is free. Say
+it that way --- the symmetry is the point.
+
+\heading{Step 10 — Read the answer}
+\dolabel {\bfseries (1)} Widen {\bfseries pipe 11 (7--8)}, at
+$-1.6146\times10^{-1}$, the most negative of the twelve.\par
+\why Sign says which way, magnitude says how much \src{slide 25}; and the
+magnitude {\itshape is} the squared pressure drop, so the two outlet pipes --- 11
+and 10, discharging into the grounded junction --- carry the network's largest
+drops ($0.40182$, $0.39857$) and win. Pipe 9 drops $0.00325$ and scores four
+orders of magnitude less.\par
+\dolabel {\bfseries (2)} Every $df/dx_e\le0$; the largest is
+$-1.06\times10^{-5}$.\par
+\why {\color{warn}Do not answer ``they all came out negative''.} The question is
+why they {\itshape must} be: $A_e=(e_i-e_j)(e_i-e_j)^{\!\top}$ is an outer
+product, hence positive semidefinite, hence $(p_i-p_j)^2\ge0$ for every network,
+every design, always. Physically, widening a pipe can only make it easier to push
+the same flow, so the pump head falls or holds but never rises. That is also why
+the volume budget must be active at the optimum.
+
+\heading{Appendix A — what to cite}
+\begin{tabular}{@{}p{4.4cm}p{10cm}@{}}
+Rao, {\itshape Section 15.4}, p.~705 & Response sensitivity --- the whole of Q1. Assigned before L05 and again before L06, ``now read as the tool that will be used'' \src{slide 29}.\\[3pt]
+Rao, {\itshape Section 15.7}, p.~712 & Optimum sensitivity / shadow prices. {\color{warn}Not Q1.}\\[3pt]
+L05 slides 1--29 & The derivation chain; slides 5--9 are the small version of this network.\\[3pt]
+\texttt{pipe\_sensitivity\_demo.m} & The supplied five-pipe reference script.\\
+\end{tabular}
+
+\heading{Appendix B — the distinction most likely to be probed}
+\src{slide 27} Two Lagrange multipliers live in this course; Q1 uses only one.
+\par\smallskip
+\small
+\begin{tabular}{@{}p{2.7cm}p{5.0cm}p{5.0cm}@{}}
+ & {\bfseries response sensitivity (Q1)} & {\bfseries shadow price (L04, A3 Q2)}\\[3pt]
+\hline\\[-6pt]
+the question & widen this pipe by one unit --- how far does the pressure move? & move this limit by one unit --- how much better could the best design be?\\[3pt]
+the number & $df/dx_e=\lambda^{\!\top}A_ep$ & $df^\star/db=-\lambda$\\[3pt]
+you perturb & a design variable & a problem parameter\\[3pt]
+you stand & at {\itshape any} design & only at the optimum, after solving\\[3pt]
+carried on & the analysis $Ap=q$ & a design limit $g\le0$\\
+\end{tabular}
+\normalsize
+\par\smallskip
+Same object, two jobs. Q2's \texttt{lambda.ineqlin} is the right-hand column;
+everything in Q1 is the left.
+
+\par\medskip
+{\color{warn}Note:} the slides tag results with [Notes \S1.2], [\S2.5], [\S2.6],
+[\S5] --- a lecture-notes document {\itshape not} in this repository. Cite slide
+numbers, not section numbers you have not seen.
+
+\end{document}
